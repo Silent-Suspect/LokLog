@@ -1,4 +1,4 @@
-import { LayoutDashboard, Settings, Wrench, FileText } from 'lucide-react';
+import { LayoutDashboard, Settings, Wrench, FileText, TrainFront } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 const Sidebar = () => {
@@ -10,39 +10,37 @@ const Sidebar = () => {
   ];
 
   return (
-    <aside className="w-64 bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0 border-r border-slate-800">
-      <div className="p-6 border-b border-slate-800">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <span className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">L</span>
+    <aside className="w-64 bg-card flex flex-col h-screen fixed left-0 top-0 border-r border-gray-800">
+      <div className="p-6 border-b border-gray-800">
+        <h1 className="text-2xl font-bold flex items-center gap-3 text-white">
+          <div className="w-10 h-10 bg-accent-blue rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/20">
+            <TrainFront className="text-white" size={24} />
+          </div>
           LokLog
         </h1>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-4 space-y-2 mt-2">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive
-                ? 'bg-blue-600 text-white'
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              `flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-medium ${isActive
+                ? 'bg-accent-blue text-white shadow-lg shadow-blue-900/20'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`
             }
           >
-            <item.icon size={20} />
-            <span className="font-medium">{item.label}</span>
+            <item.icon size={22} />
+            <span className="text-base">{item.label}</span>
           </NavLink>
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <div className="w-8 h-8 rounded-full bg-slate-700"></div>
-          <div className="text-sm">
-            <p className="font-medium">User Admin</p>
-            <p className="text-xs text-slate-500">admin@loklog.com</p>
-          </div>
+      <div className="p-4 border-t border-gray-800">
+        <div className="text-xs text-center text-gray-500">
+          v0.1.0 • Alpha
         </div>
       </div>
     </aside>

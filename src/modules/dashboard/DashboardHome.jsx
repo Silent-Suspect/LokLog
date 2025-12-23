@@ -1,41 +1,59 @@
-import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { BookOpen, Search, Clock, TrainFront } from 'lucide-react';
+import LiveClock from '../../components/LiveClock';
 
 const DashboardHome = () => {
-    const [apiMessage, setApiMessage] = useState('');
+    const navigate = useNavigate();
 
-    const callApi = async () => {
-        try {
-            const response = await fetch('/api/hello');
-            const data = await response.json();
-            setApiMessage(data.message);
-        } catch (error) {
-            setApiMessage('Error calling API (Backend might not be running locally)');
-            console.error(error);
-        }
-    };
+    const cards = [
+        {
+            title: 'LokLog',
+            description: 'Shift reporting & Logs',
+            icon: BookOpen,
+            color: 'bg-accent-blue',
+            action: () => navigate('/loklog'),
+        },
+        {
+            title: 'Decoder',
+            description: 'Signal & Error Codes',
+            icon: Search,
+            color: 'bg-accent-purple',
+            action: () => alert('Module coming soon!'),
+        },
+        {
+            title: 'Tracker',
+            description: 'External Shift Tracker',
+            icon: Clock,
+            color: 'bg-accent-green',
+            action: () => window.open('https://silent-suspect.github.io/shift-tracker/', '_blank'),
+        },
+        {
+            title: 'Fahrtenbuch',
+            description: 'Legacy Travel Log',
+            icon: TrainFront,
+            color: 'bg-accent-orange',
+            action: () => alert('External link placeholder'),
+        },
+    ];
 
     return (
-        <div className="space-y-6">
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
-                <h1 className="text-3xl font-bold text-slate-900 mb-4">Welcome to the SaaS Platform</h1>
-                <p className="text-slate-500 mb-6">
-                    This is the dashboard home. The layout is set up with a sidebar and top header.
-                </p>
+        <div className="flex flex-col gap-8 max-w-5xl mx-auto">
+            <LiveClock />
 
-                <div className="flex gap-4 items-center">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-4">
+                {cards.map((card, index) => (
                     <button
-                        onClick={callApi}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                        key={index}
+                        onClick={card.action}
+                        className="flex flex-col items-center justify-center p-8 rounded-2xl bg-card hover:bg-opacity-80 transition-all transform hover:scale-[1.02] border border-gray-800 shadow-lg group"
                     >
-                        Test Backend API
+                        <div className={`p-4 rounded-full mb-4 ${card.color} bg-opacity-10 group-hover:bg-opacity-20 transition`}>
+                            <card.icon size={48} className={`text-${card.color.replace('bg-', '')}`} />
+                        </div>
+                        <h3 className="text-2xl font-bold text-white mb-2">{card.title}</h3>
+                        <p className="text-gray-400 font-medium">{card.description}</p>
                     </button>
-
-                    {apiMessage && (
-                        <span className="text-sm font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-                            {apiMessage}
-                        </span>
-                    )}
-                </div>
+                ))}
             </div>
         </div>
     );
