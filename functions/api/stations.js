@@ -59,6 +59,11 @@ export async function onRequestGet(context) {
 // PUT: Update GPS (ADMIN ONLY) 🔒
 export async function onRequestPut(context) {
     try {
+        // 0. DEBUG CHECK: Ist der Schlüssel da?
+        if (!context.env.CLERK_SECRET_KEY) {
+            throw new Error("CRITICAL: CLERK_SECRET_KEY fehlt in den Environment Variables!");
+        }
+
         // 1. Auth Header prüfen
         const authHeader = context.request.headers.get('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -68,16 +73,15 @@ export async function onRequestPut(context) {
         const token = authHeader.split(' ')[1];
 
         // 2. Clerk Initialisieren
-        // ACHTUNG: Der Secret Key muss in Cloudflare Env Vars liegen!
         const clerk = createClerkClient({
             secretKey: context.env.CLERK_SECRET_KEY,
             publishableKey: context.env.VITE_CLERK_PUBLISHABLE_KEY
         });
 
-        // 3. Token verifizieren & User-Daten laden
+        // 3. Token verifizieren
         const tokenState = await clerk.verifyToken(token);
 
-        // Wir brauchen das User-Objekt für die Metadata
+        // User laden
         const user = await clerk.users.getUser(tokenState.sub);
 
         // 4. Admin Rolle prüfen
@@ -87,12 +91,10 @@ export async function onRequestPut(context) {
             return new Response('Forbidden: Admin access only', { status: 403, headers: corsHeaders });
         }
 
-        // 5. Wenn wir hier sind: Zugriff erlaubt! Update durchführen.
+        // 5. Update
         const { code, lat, lng } = await context.request.json();
-
         if (!code) return Response.json({ error: "Code missing" }, { status: 400, headers: corsHeaders });
 
-        // Update in D1
         await context.env.DB.prepare(
             "UPDATE stations SET lat = ?, lng = ? WHERE code = ?"
         ).bind(lat, lng, code).run();
@@ -101,7 +103,11 @@ export async function onRequestPut(context) {
 
     } catch (err) {
         console.error("Auth Error:", err);
-        // Vage Fehlermeldung für User, Detail im Log
-        return new Response(`Server Error: ${err.message}`, { status: 500, headers: corsHeaders });
+        // WICHTIG: Wir geben den echten Fehlertext zurück zum Debuggen!
+        return Response.json({
+            error: "Internal Server Error",
+            details: err.message,
+            stack: err.stack
+        }, { status: 500, headers: corsHeaders });
     }
 }
