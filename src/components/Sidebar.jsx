@@ -1,9 +1,10 @@
-import { LayoutDashboard, Settings } from 'lucide-react';
+import { LayoutDashboard, Settings, Wrench } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 const Sidebar = () => {
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    { icon: Wrench, label: 'Tools', path: '/tools' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 
@@ -22,10 +23,9 @@ const Sidebar = () => {
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive
+                ? 'bg-blue-600 text-white'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               }`
             }
           >
