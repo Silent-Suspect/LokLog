@@ -35,7 +35,7 @@ const StationManager = () => {
             try {
                 const res = await fetch(`/api/stations?search=${encodeURIComponent(debouncedTerm)}`);
                 const data = await res.json();
-                setResults(data);
+                setResults(data.results || []);
                 // Clear old edits/status when searching new things to avoid confusion
                 setEdits({});
                 setSaveStatus({});
@@ -103,7 +103,7 @@ const StationManager = () => {
 
                 // Update local result list to reflect saved values as "original"
                 setResults(prev => prev.map(s =>
-                    s.code === station.code ? { ...s, lat: updatedData.lat, lng: updatedData.lng } : s
+                    s.code === station.code ? { ...s, lat: latToSend, lng: lngToSend } : s
                 ));
 
                 // Clear edit state for this row as it matches now
