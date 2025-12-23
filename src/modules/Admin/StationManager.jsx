@@ -82,15 +82,14 @@ const StationManager = () => {
             setSaveStatus(prev => ({ ...prev, [station.code]: 'saving' }));
             setGlobalError(null);
 
-            const { getToken } = useAuth(); // hook usage inside callback is wrong, need to move hook up
-            // Wait, useAuth must be at top level. 
-            // I need to add const { getToken } = useAuth(); at top level first.
-            // Let's adjust this chunk.
-
+            const token = await getToken();
 
             const res = await fetch('/api/stations', {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({
                     code: station.code,
                     lat: latToSend,
