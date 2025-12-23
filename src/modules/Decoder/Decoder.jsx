@@ -34,9 +34,28 @@ const Decoder = () => {
         const fetchDecoder = async () => {
             setLoading(true);
 
-            // 1. Parsing: Split by spaces, commas, plus, dash
-            // Example "AA AABG+AADF" -> ["AA", "AABG", "AADF"]
-            const tokens = debouncedInput.split(/[\s,+-]+/).filter(t => t.length > 0);
+            // 1. Parsing: Smart Split
+            // Handles "AA AABG" -> ["AA", "AABG"] and "AAH A" -> ["AAH A"] (Merge single letter suffix)
+            const rawTokens = debouncedInput
+                .replace(/[,+-]/g, ' ')      // Replace separators with space
+                .replace(/\s+/g, ' ')        // Collapse multiple spaces
+                .trim()
+                .split(' ')
+                .filter(t => t.length > 0);
+
+            const tokens = [];
+            for (let i = 0; i < rawTokens.length; i++) {
+                const current = rawTokens[i];
+                const next = rawTokens[i + 1];
+
+                // Check rule: Merge if next token exists and is exactly 1 char
+                if (next && next.length === 1) {
+                    tokens.push(`${current} ${next}`);
+                    i++; // skip 'next' as it is consumed
+                } else {
+                    tokens.push(current);
+                }
+            }
 
             if (tokens.length > 1) {
                 // --- ROUTE MODE ---
