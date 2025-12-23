@@ -1,15 +1,16 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import DashboardLayout from './layouts/DashboardLayout';
+import DashboardPage from './modules/dashboard/DashboardPage';
+import SettingsPage from './modules/settings/SettingsPage';
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={
-          <div className="p-10">
-            <h1 className="text-3xl font-bold text-blue-600">LokLog SaaS Dashboard</h1>
-            <p className="mt-4 text-gray-600">Environment initialized with React, Vite, Tailwind CSS.</p>
-          </div>
-        } />
+        <Route element={<DashboardLayout />}>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Route>
       </Routes>
     </Router>
   );
