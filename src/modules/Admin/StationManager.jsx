@@ -196,7 +196,8 @@ const StationManager = () => {
                                 <label className="block text-xs text-gray-500 mb-1 font-mono">Latitude</label>
                                 <input
                                     type="text"
-                                    className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-blue outline-none"
+                                    className={`w-full bg-gray-900 border rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-blue outline-none transition-colors ${!currentLat ? 'border-red-500/80 bg-red-950/20' : 'border-gray-700'
+                                        }`}
                                     placeholder="e.g. 52.518"
                                     value={currentLat}
                                     onChange={(e) => handleInputChange(station.code, 'lat', e.target.value)}
@@ -206,7 +207,8 @@ const StationManager = () => {
                                 <label className="block text-xs text-gray-500 mb-1 font-mono">Longitude</label>
                                 <input
                                     type="text"
-                                    className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-blue outline-none"
+                                    className={`w-full bg-gray-900 border rounded px-2 py-1.5 text-sm text-white font-mono focus:border-accent-blue outline-none transition-colors ${!currentLng ? 'border-red-500/80 bg-red-950/20' : 'border-gray-700'
+                                        }`}
                                     placeholder="e.g. 13.408"
                                     value={currentLng}
                                     onChange={(e) => handleInputChange(station.code, 'lng', e.target.value)}
