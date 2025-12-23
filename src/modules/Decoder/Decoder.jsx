@@ -75,8 +75,8 @@ const Decoder = () => {
                         if (index > 0) {
                             const prev = dbResults.find(r => r.code.toLowerCase() === tokens[index - 1].toLowerCase());
                             // Only calculate if BOTH current and prev are valid physical stations
-                            if (prev && prev.latitude && match.latitude) {
-                                legDist = calculateDistance(prev.latitude, prev.longitude, match.latitude, match.longitude);
+                            if (prev && prev.lat && match.lat) {
+                                legDist = calculateDistance(prev.lat, prev.lng, match.lat, match.lng);
                                 accumulatedDistance += parseFloat(legDist);
                             }
                         }
@@ -184,7 +184,7 @@ const Decoder = () => {
                                     <h3 className="text-lg font-medium text-gray-200">{station.name}</h3>
                                 </div>
                                 <div className="text-right text-sm text-gray-500">
-                                    <div className="font-mono">{station.latitude}, {station.longitude}</div>
+                                    <div className="font-mono">{station.lat}, {station.lng}</div>
                                 </div>
                             </div>
                         ))}
@@ -234,8 +234,8 @@ const Decoder = () => {
 
                                         {/* Content Card */}
                                         <div className={`p-4 rounded-xl border transition-all ${stop.valid
-                                                ? 'bg-gray-800/50 border-gray-700 hover:bg-gray-800 hover:border-gray-600'
-                                                : 'bg-red-900/10 border-red-900/30'
+                                            ? 'bg-gray-800/50 border-gray-700 hover:bg-gray-800 hover:border-gray-600'
+                                            : 'bg-red-900/10 border-red-900/30'
                                             }`}>
                                             <div className="flex justify-between items-start">
                                                 <div>
