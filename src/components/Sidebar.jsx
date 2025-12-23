@@ -1,9 +1,10 @@
-import { LayoutDashboard, Settings, Wrench } from 'lucide-react';
+import { LayoutDashboard, Settings, Wrench, FileText } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 const Sidebar = () => {
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    { icon: FileText, label: 'LokLog', path: '/loklog' },
     { icon: Wrench, label: 'Tools', path: '/tools' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
