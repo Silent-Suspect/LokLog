@@ -59,3 +59,34 @@ export async function onRequestGet(context) {
         return new Response(JSON.stringify({ error: err.message }), { status: 500 });
     }
 }
+
+export async function onRequestPut(context) {
+    try {
+        const { code, lat, lng } = await context.request.json();
+
+        if (!code) {
+            return new Response(JSON.stringify({ error: "Code is required" }), { status: 400 });
+        }
+
+        // Validate lat/lng if necessary
+        // Ensure we handle empty strings as null
+        const newLat = (lat === '' || lat === undefined) ? null : lat;
+        const newLng = (lng === '' || lng === undefined) ? null : lng;
+
+        const result = await context.env.DB.prepare(
+            `UPDATE stations SET lat = ?, lng = ? WHERE code = ?`
+        )
+            .bind(newLat, newLng, code)
+            .run();
+
+        if (result.success) {
+            return new Response(JSON.stringify({ success: true, code, lat: newLat, lng: newLng }), {
+                headers: { "Content-Type": "application/json" },
+            });
+        } else {
+            return new Response(JSON.stringify({ error: "Update failed" }), { status: 500 });
+        }
+    } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+}
