@@ -5,6 +5,7 @@ import DashboardHome from './modules/dashboard/DashboardHome';
 import SettingsPage from './modules/settings/SettingsPage';
 import LokLogDashboard from './modules/LokLog/LokLogDashboard';
 import Decoder from './modules/Decoder/Decoder';
+import ExcelDebug from './modules/Dev/ExcelDebug';
 import AdminDashboard from './modules/Admin/AdminDashboard';
 import AdminRoute from './layouts/AdminRoute';
 
@@ -43,6 +44,7 @@ function App() {
                   <Route path="decoder" element={<Decoder />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="tools" element={<ToolsPage />} />
+                  <Route path="debug" element={<ExcelDebug />} />
 
                   {/* Admin Routes */}
                   <Route path="admin" element={
