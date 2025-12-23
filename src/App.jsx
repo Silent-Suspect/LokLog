@@ -5,6 +5,8 @@ import DashboardHome from './modules/dashboard/DashboardHome';
 import SettingsPage from './modules/settings/SettingsPage';
 import LokLog from './modules/LokLog/LokLog';
 import Decoder from './modules/Decoder/Decoder';
+import AdminDashboard from './modules/Admin/AdminDashboard';
+import AdminRoute from './layouts/AdminRoute';
 
 // Placeholder for Tools
 const ToolsPage = () => <div className="p-8"><h1 className="text-2xl font-bold">Tools</h1><p className="text-slate-500">Coming soon...</p></div>;
@@ -41,6 +43,13 @@ function App() {
                   <Route path="decoder" element={<Decoder />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="tools" element={<ToolsPage />} />
+
+                  {/* Admin Routes */}
+                  <Route path="admin" element={
+                    <AdminRoute>
+                      <AdminDashboard />
+                    </AdminRoute>
+                  } />
                 </Route>
 
                 {/* 404 Fallback */}

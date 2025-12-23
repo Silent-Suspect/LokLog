@@ -1,13 +1,20 @@
-import { LayoutDashboard, Settings, Wrench, FileText, TrainFront } from 'lucide-react';
+import { LayoutDashboard, Settings, Wrench, FileText, TrainFront, ShieldAlert } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import { useAdmin } from '../hooks/useAdmin';
 
 const Sidebar = ({ isOpen }) => {
+  const isAdmin = useAdmin();
+
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: FileText, label: 'LokLog', path: '/loklog' },
     { icon: Wrench, label: 'Tools', path: '/tools' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
+
+  if (isAdmin) {
+    navItems.push({ icon: ShieldAlert, label: 'Admin', path: '/admin' });
+  }
 
   return (
     <aside className={`
