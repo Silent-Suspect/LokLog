@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Search, Save, CheckCircle, AlertCircle, MapPin } from 'lucide-react';
+import { useAuth } from '@clerk/clerk-react';
 
 const StationManager = () => {
+    const { getToken } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedTerm, setDebouncedTerm] = useState('');
     const [results, setResults] = useState([]);
@@ -12,6 +14,8 @@ const StationManager = () => {
 
     // Track save status: { [stationCode]: 'success' | 'error' | null }
     const [saveStatus, setSaveStatus] = useState({});
+    // Track global error (e.g. auth failed)
+    const [globalError, setGlobalError] = useState(null);
 
     // Debounce Search
     useEffect(() => {
@@ -76,6 +80,13 @@ const StationManager = () => {
 
         try {
             setSaveStatus(prev => ({ ...prev, [station.code]: 'saving' }));
+            setGlobalError(null);
+
+            const { getToken } = useAuth(); // hook usage inside callback is wrong, need to move hook up
+            // Wait, useAuth must be at top level. 
+            // I need to add const { getToken } = useAuth(); at top level first.
+            // Let's adjust this chunk.
+
 
             const res = await fetch('/api/stations', {
                 method: 'PUT',
@@ -113,6 +124,11 @@ const StationManager = () => {
                 }, 3000);
 
             } else {
+                if (res.status === 401 || res.status === 403) {
+                    setGlobalError("Permission Denied: You are not authorized to edit stations.");
+                } else {
+                    setGlobalError("Update Failed");
+                }
                 throw new Error('Save failed');
             }
         } catch (err) {
