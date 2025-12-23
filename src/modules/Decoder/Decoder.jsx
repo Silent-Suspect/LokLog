@@ -56,7 +56,7 @@ const Decoder = () => {
                         // Find matching station logic (Case-insensitive check recommended if API doesn't handle it, 
                         // but usually best to rely on what API returned. 
                         // Our API does `code IN (...)` which is usually case-insensitive in SQL, but let's be safe).
-                        const match = dbResults.find(r =>
+                        const match = (dbResults.results || []).find(r =>
                             r.code.toLowerCase() === token.toLowerCase() ||
                             r.name.toLowerCase() === token.toLowerCase() // basic fallback
                         );
@@ -73,7 +73,7 @@ const Decoder = () => {
                         // Distance Calculation (if not the first item)
                         let legDist = 0;
                         if (index > 0) {
-                            const prev = dbResults.find(r => r.code.toLowerCase() === tokens[index - 1].toLowerCase());
+                            const prev = (dbResults.results || []).find(r => r.code.toLowerCase() === tokens[index - 1].toLowerCase());
                             // Only calculate if BOTH current and prev are valid physical stations
                             if (prev && prev.lat && match.lat) {
                                 legDist = calculateDistance(prev.lat, prev.lng, match.lat, match.lng);
@@ -98,9 +98,9 @@ const Decoder = () => {
                 // --- SEARCH MODE ---
                 setMode('search');
                 try {
-                    const response = await fetch(`/api/stations?search=${encodeURIComponent(tokens[0])}`);
+                    const response = await fetch(`/api/stations?q=${encodeURIComponent(tokens[0])}`);
                     const data = await response.json();
-                    setSearchResults(data);
+                    setSearchResults(data.results || []);
                 } catch (error) {
                     console.error("Search fetch error:", error);
                     setSearchResults([]);
