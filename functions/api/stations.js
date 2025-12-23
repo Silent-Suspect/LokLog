@@ -35,10 +35,13 @@ export async function onRequestGet(context) {
             const query = `
         SELECT * FROM stations 
         WHERE code LIKE ? OR name LIKE ? OR short_name LIKE ? 
+        ORDER BY 
+          CASE WHEN code = ? THEN 1 ELSE 2 END, 
+          code ASC
         LIMIT 20
       `;
             const { results: rows } = await context.env.DB.prepare(query)
-                .bind(term, term, term)
+                .bind(term, term, term, searchTerm)
                 .all();
             results = rows;
         }
