@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { SignedIn, SignedOut, SignIn } from '@clerk/clerk-react';
 import DashboardLayout from './layouts/DashboardLayout';
 import DashboardHome from './modules/dashboard/DashboardHome';
 import SettingsPage from './modules/settings/SettingsPage';
@@ -22,16 +23,30 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Main Dashboard Layout Routes */}
-        <Route path="/" element={<DashboardLayout />}>
-          <Route index element={<DashboardHome />} />
-          <Route path="loklog" element={<LokLog />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="tools" element={<ToolsPage />} />
-        </Route>
+        <Route path="*" element={
+          <>
+            <SignedOut>
+              <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                <SignIn />
+              </div>
+            </SignedOut>
 
-        {/* 404 Fallback */}
-        <Route path="*" element={<NotFound />} />
+            <SignedIn>
+              <Routes>
+                {/* Main Dashboard Layout Routes */}
+                <Route path="/" element={<DashboardLayout />}>
+                  <Route index element={<DashboardHome />} />
+                  <Route path="loklog" element={<LokLog />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                  <Route path="tools" element={<ToolsPage />} />
+                </Route>
+
+                {/* 404 Fallback */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </SignedIn>
+          </>
+        } />
       </Routes>
     </Router>
   );

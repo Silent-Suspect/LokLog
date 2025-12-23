@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Send, User, Clock } from 'lucide-react';
+import { useUser } from '@clerk/clerk-react';
 
 const LokLog = () => {
+    const { user } = useUser();
     const [entries, setEntries] = useState([]);
-    const [user, setUser] = useState('');
     const [content, setContent] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -16,7 +17,6 @@ const LokLog = () => {
             setEntries(data || []);
         } catch (err) {
             console.error(err);
-            // Fallback for local dev without DB binding
             setError('Could not load entries. (Ensure backend is running)');
         }
     };
@@ -27,22 +27,25 @@ const LokLog = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!user || !content) return;
+        if (!content) return;
 
         setLoading(true);
         setError('');
 
         try {
+            // Use logged-in user's full name, or first name, or fallback
+            const userName = user.fullName || user.firstName || 'Unknown User';
+
             const res = await fetch('/api/loklog', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user, content }),
+                body: JSON.stringify({ user: userName, content }),
             });
 
             if (!res.ok) throw new Error('Failed to save entry');
 
-            setContent(''); // Clear message, keep user
-            fetchEntries(); // Reload list
+            setContent('');
+            fetchEntries();
         } catch (err) {
             setError(err.message);
         } finally {
@@ -67,18 +70,15 @@ const LokLog = () => {
             {/* Input Form */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">User / Driver Name</label>
-                        <div className="relative">
-                            <User className="absolute left-3 top-2.5 text-slate-400" size={18} />
-                            <input
-                                type="text"
-                                placeholder="Ex: Max S."
-                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                                value={user}
-                                onChange={(e) => setUser(e.target.value)}
-                            />
+
+                    {/* User Info Display */}
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <div className="bg-blue-600 text-white rounded-full p-1">
+                            <User size={16} />
                         </div>
+                        <span className="text-sm font-medium text-slate-700">
+                            Logged in as: <span className="font-bold text-slate-900">{user?.fullName}</span>
+                        </span>
                     </div>
 
                     <div>
@@ -96,7 +96,7 @@ const LokLog = () => {
                         <span className="text-sm text-red-500">{error}</span>
                         <button
                             type="submit"
-                            disabled={loading || !user || !content}
+                            disabled={loading || !content}
                             className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                         >
                             <Send size={18} />
