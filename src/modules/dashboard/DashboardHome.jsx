@@ -16,9 +16,8 @@ const DashboardHome = () => {
         {
             title: 'Decoder',
             description: 'Signal & Error Codes',
-            icon: Search,
             color: 'bg-accent-purple',
-            action: () => alert('Module coming soon!'),
+            action: () => navigate('/decoder'),
         },
         {
             title: 'Tracker',
