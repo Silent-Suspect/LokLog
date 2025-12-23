@@ -142,6 +142,14 @@ const StationManager = () => {
                 />
             </div>
 
+            {/* Global Error Banner */}
+            {globalError && (
+                <div className="mb-6 p-4 bg-red-900/20 border border-red-900/50 rounded-xl flex items-center gap-3 text-red-300 animate-in fade-in slide-in-from-top-2">
+                    <AlertCircle size={20} className="shrink-0" />
+                    <span>{globalError}</span>
+                </div>
+            )}
+
             {/* Results */}
             <div className="space-y-2">
                 {results.map(station => {
@@ -205,8 +213,8 @@ const StationManager = () => {
                                         onClick={() => handleSave(station)}
                                         disabled={!isDirty || status === 'saving'}
                                         className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${isDirty
-                                                ? 'bg-accent-blue text-white hover:bg-blue-600 shadow-lg shadow-blue-900/20'
-                                                : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                                            ? 'bg-accent-blue text-white hover:bg-blue-600 shadow-lg shadow-blue-900/20'
+                                            : 'bg-gray-800 text-gray-500 cursor-not-allowed'
                                             }`}
                                     >
                                         <Save size={18} />
