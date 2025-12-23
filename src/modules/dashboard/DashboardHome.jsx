@@ -1,58 +1,95 @@
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Search, Clock, TrainFront } from 'lucide-react';
+import { useUser } from '@clerk/clerk-react';
+import { TrainFront, Binary, ShieldAlert } from 'lucide-react';
+import { useAdmin } from '../../hooks/useAdmin';
 import LiveClock from '../../components/LiveClock';
 
 const DashboardHome = () => {
+    const { user } = useUser();
+    const isAdmin = useAdmin();
     const navigate = useNavigate();
 
-    const cards = [
+    const apps = [
         {
             title: 'LokLog',
-            description: 'Shift reporting & Logs',
-            icon: BookOpen,
-            color: 'bg-accent-blue',
-            action: () => navigate('/loklog'),
+            description: 'Fahrtenbuch & Zeiterfassung',
+            icon: TrainFront,
+            color: 'text-accent-blue',
+            bgColor: 'bg-accent-blue/10',
+            borderColor: 'group-hover:border-accent-blue/50',
+            btnText: 'Starten',
+            path: '/loklog',
         },
         {
             title: 'Decoder',
-            description: 'Signal & Error Codes',
-            icon: Search,
-            color: 'bg-accent-purple',
-            action: () => navigate('/decoder'),
-        },
-        {
-            title: 'Tracker',
-            description: 'External Shift Tracker',
-            icon: Clock,
-            color: 'bg-accent-green',
-            action: () => window.open('https://silent-suspect.github.io/shift-tracker/', '_blank'),
-        },
-        {
-            title: 'Fahrtenbuch',
-            description: 'Legacy Travel Log',
-            icon: TrainFront,
-            color: 'bg-accent-orange',
-            action: () => alert('External link placeholder'),
+            description: 'Betriebsstellen & Routen-Check',
+            icon: Binary,
+            color: 'text-accent-purple',
+            bgColor: 'bg-accent-purple/10',
+            borderColor: 'group-hover:border-accent-purple/50',
+            btnText: 'Öffnen',
+            path: '/decoder',
         },
     ];
 
-    return (
-        <div className="flex flex-col gap-8 max-w-5xl mx-auto">
-            <LiveClock />
+    if (isAdmin) {
+        apps.push({
+            title: 'Admin',
+            description: 'Station Manager & System',
+            icon: ShieldAlert,
+            color: 'text-red-500',
+            bgColor: 'bg-red-500/10',
+            borderColor: 'group-hover:border-red-500/50',
+            btnText: 'Verwalten',
+            path: '/admin',
+        });
+    }
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-4">
-                {cards.map((card, index) => (
-                    <button
+    return (
+        <div className="max-w-5xl mx-auto space-y-8">
+            <header className="space-y-2">
+                <h1 className="text-4xl font-bold text-white">
+                    Moin, <span className="text-accent-blue">{user?.firstName || 'Lokführer'}</span>!
+                </h1>
+                <p className="text-gray-400 text-lg">
+                    Was steht heute an?
+                </p>
+                <div className="pt-2">
+                    <LiveClock />
+                </div>
+            </header>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {apps.map((app, index) => (
+                    <div
                         key={index}
-                        onClick={card.action}
-                        className="flex flex-col items-center justify-center p-8 rounded-2xl bg-card hover:bg-opacity-80 transition-all transform hover:scale-[1.02] border border-gray-800 shadow-lg group"
+                        onClick={() => navigate(app.path)}
+                        className={`
+                            relative overflow-hidden
+                            bg-card border border-gray-800 rounded-2xl p-6 
+                            cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl
+                            group ${app.borderColor}
+                        `}
                     >
-                        <div className={`p-4 rounded-full mb-4 ${card.color} bg-opacity-10 group-hover:bg-opacity-20 transition`}>
-                            <card.icon size={48} className={`text-${card.color.replace('bg-', '')}`} />
+                        {/* Background Glow Effect */}
+                        <div className={`absolute -right-10 -top-10 w-40 h-40 rounded-full blur-3xl opacity-10 transition-opacity group-hover:opacity-20 ${app.bgColor.replace('/10', '')}`}></div>
+
+                        <div className="flex flex-col h-full justify-between relative z-10">
+                            <div>
+                                <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-4 ${app.bgColor}`}>
+                                    <app.icon size={32} className={app.color} />
+                                </div>
+                                <h3 className="text-2xl font-bold text-white mb-2">{app.title}</h3>
+                                <p className="text-gray-400">{app.description}</p>
+                            </div>
+
+                            <div className="mt-8">
+                                <span className={`text-sm font-bold uppercase tracking-wider ${app.color} group-hover:underline underline-offset-4`}>
+                                    {app.btnText} &rarr;
+                                </span>
+                            </div>
                         </div>
-                        <h3 className="text-2xl font-bold text-white mb-2">{card.title}</h3>
-                        <p className="text-gray-400 font-medium">{card.description}</p>
-                    </button>
+                    </div>
                 ))}
             </div>
         </div>

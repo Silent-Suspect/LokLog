@@ -3,7 +3,7 @@ import { SignedIn, SignedOut, SignIn } from '@clerk/clerk-react';
 import DashboardLayout from './layouts/DashboardLayout';
 import DashboardHome from './modules/dashboard/DashboardHome';
 import SettingsPage from './modules/settings/SettingsPage';
-import LokLog from './modules/LokLog/LokLog';
+import LokLogDashboard from './modules/LokLog/LokLogDashboard';
 import Decoder from './modules/Decoder/Decoder';
 import AdminDashboard from './modules/Admin/AdminDashboard';
 import AdminRoute from './layouts/AdminRoute';
@@ -39,7 +39,7 @@ function App() {
                 {/* Main Dashboard Layout Routes */}
                 <Route path="/" element={<DashboardLayout />}>
                   <Route index element={<DashboardHome />} />
-                  <Route path="loklog" element={<LokLog />} />
+                  <Route path="loklog" element={<LokLogDashboard />} />
                   <Route path="decoder" element={<Decoder />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="tools" element={<ToolsPage />} />

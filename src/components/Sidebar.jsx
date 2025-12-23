@@ -1,20 +1,38 @@
-import { LayoutDashboard, Settings, Wrench, FileText, TrainFront, ShieldAlert } from 'lucide-react';
+import { LayoutGrid, Binary, TrainFront, ShieldAlert, User } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAdmin } from '../hooks/useAdmin';
 
 const Sidebar = ({ isOpen }) => {
   const isAdmin = useAdmin();
 
-  const navItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-    { icon: FileText, label: 'LokLog', path: '/loklog' },
-    { icon: Wrench, label: 'Tools', path: '/tools' },
-    { icon: Settings, label: 'Settings', path: '/settings' },
+  const apps = [
+    { icon: LayoutGrid, label: 'Dashboard', path: '/' },
+    { icon: TrainFront, label: 'LokLog', path: '/loklog' },
+    { icon: Binary, label: 'Decoder', path: '/decoder' },
+  ];
+
+  const system = [
+    { icon: User, label: 'Profil', path: '#' }, // Placeholder link
   ];
 
   if (isAdmin) {
-    navItems.push({ icon: ShieldAlert, label: 'Admin', path: '/admin' });
+    system.unshift({ icon: ShieldAlert, label: 'Admin Konsole', path: '/admin' });
   }
+
+  const NavItem = ({ item }) => (
+    <NavLink
+      to={item.path}
+      className={({ isActive }) =>
+        `flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${isActive && item.path !== '#'
+          ? 'bg-accent-blue text-white shadow-lg shadow-blue-900/20'
+          : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+        }`
+      }
+    >
+      <item.icon size={20} />
+      <span className="text-sm">{item.label}</span>
+    </NavLink>
+  );
 
   return (
     <aside className={`
@@ -33,27 +51,32 @@ const Sidebar = ({ isOpen }) => {
         </h1>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2 mt-2">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-medium ${isActive
-                ? 'bg-accent-blue text-white shadow-lg shadow-blue-900/20'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-              }`
-            }
-          >
-            <item.icon size={22} />
-            <span className="text-base">{item.label}</span>
-          </NavLink>
-        ))}
+      <nav className="flex-1 p-4 space-y-6 mt-2 overflow-y-auto">
+
+        {/* APPS SECTION */}
+        <div>
+          <div className="px-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apps</div>
+          <div className="space-y-1">
+            {apps.map((item) => <NavItem key={item.label} item={item} />)}
+          </div>
+        </div>
+
+        {/* DIVIDER */}
+        <div className="h-px bg-gray-800 mx-4"></div>
+
+        {/* SYSTEM SECTION */}
+        <div>
+          <div className="px-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">System</div>
+          <div className="space-y-1">
+            {system.map((item) => <NavItem key={item.label} item={item} />)}
+          </div>
+        </div>
+
       </nav>
 
       <div className="p-4 border-t border-gray-800">
         <div className="text-xs text-center text-gray-500">
-          v0.1.0 • Alpha
+          v0.2.0 • Beta
         </div>
       </div>
     </aside>
