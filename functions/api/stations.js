@@ -1,42 +1,36 @@
-import { createClerkClient } from '@clerk/backend';
+import { createClerkClient, verifyToken } from '@clerk/backend';
 
-// Helper: Standard Response Headers (CORS etc.)
+// Helper: Standard Response Headers
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-// Handle OPTIONS (Preflight Requests für CORS)
+// Handle OPTIONS
 export async function onRequestOptions() {
     return new Response(null, { headers: corsHeaders });
 }
 
-// GET: Suche & Route (Public Access OK)
+// GET: Suche & Route (Bleibt Public)
 export async function onRequestGet(context) {
     const { searchParams } = new URL(context.request.url);
-    const searchTerm = searchParams.get('q'); // Live-Suche
-    const codesParam = searchParams.get('codes'); // Routen-Modus
+    const searchTerm = searchParams.get('q');
+    const codesParam = searchParams.get('codes');
 
     try {
         let results = [];
 
         if (codesParam) {
-            // 1. ROUTEN MODUS (Batch)
-            // Sicherheits-Check: Max 50 Codes um Missbrauch zu verhindern
             const codes = codesParam.split(/[\s,]+/).filter(c => c).slice(0, 50);
-
             if (codes.length > 0) {
-                // Dynamisches SQL bauen: SELECT * FROM stations WHERE code IN (?, ?, ?)
                 const placeholders = codes.map(() => '?').join(',');
                 const query = `SELECT * FROM stations WHERE code IN (${placeholders})`;
                 const stmt = context.env.DB.prepare(query).bind(...codes);
                 const { results: rows } = await stmt.all();
                 results = rows;
             }
-
         } else if (searchTerm && searchTerm.length > 1) {
-            // 2. SUCH MODUS (Live)
             const term = `%${searchTerm}%`;
             const query = `
         SELECT * FROM stations 
@@ -59,9 +53,9 @@ export async function onRequestGet(context) {
 // PUT: Update GPS (ADMIN ONLY) 🔒
 export async function onRequestPut(context) {
     try {
-        // 0. DEBUG CHECK: Ist der Schlüssel da?
+        // 0. Environment Check
         if (!context.env.CLERK_SECRET_KEY) {
-            throw new Error("CRITICAL: CLERK_SECRET_KEY fehlt in den Environment Variables!");
+            throw new Error("Missing CLERK_SECRET_KEY");
         }
 
         // 1. Auth Header prüfen
@@ -72,17 +66,21 @@ export async function onRequestPut(context) {
 
         const token = authHeader.split(' ')[1];
 
-        // 2. Clerk Initialisieren
+        // 2. Token verifizieren (Standalone Funktion)
+        // Hier lag der Fehler: verifyToken muss direkt aufgerufen werden
+        const verifiedToken = await verifyToken(token, {
+            secretKey: context.env.CLERK_SECRET_KEY
+        });
+
+        // 3. User nachladen für Rollen-Check
+        // Dafür brauchen wir den Client
         const clerk = createClerkClient({
             secretKey: context.env.CLERK_SECRET_KEY,
             publishableKey: context.env.VITE_CLERK_PUBLISHABLE_KEY
         });
 
-        // 3. Token verifizieren
-        const tokenState = await clerk.verifyToken(token);
-
-        // User laden
-        const user = await clerk.users.getUser(tokenState.sub);
+        // verifiedToken.sub ist die User ID
+        const user = await clerk.users.getUser(verifiedToken.sub);
 
         // 4. Admin Rolle prüfen
         const isAdmin = user.publicMetadata?.role === 'admin';
@@ -91,8 +89,9 @@ export async function onRequestPut(context) {
             return new Response('Forbidden: Admin access only', { status: 403, headers: corsHeaders });
         }
 
-        // 5. Update
+        // 5. Update durchführen
         const { code, lat, lng } = await context.request.json();
+
         if (!code) return Response.json({ error: "Code missing" }, { status: 400, headers: corsHeaders });
 
         await context.env.DB.prepare(
@@ -103,11 +102,13 @@ export async function onRequestPut(context) {
 
     } catch (err) {
         console.error("Auth Error:", err);
-        // WICHTIG: Wir geben den echten Fehlertext zurück zum Debuggen!
+
+        // Unterscheidung: Auth Fehler vs Server Fehler
+        const status = err.message.includes('token') ? 401 : 500;
+
         return Response.json({
-            error: "Internal Server Error",
-            details: err.message,
-            stack: err.stack
-        }, { status: 500, headers: corsHeaders });
+            error: "Request Failed",
+            details: err.message
+        }, { status: status, headers: corsHeaders });
     }
 }
