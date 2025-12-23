@@ -33,7 +33,7 @@ const StationManager = () => {
         const fetchStations = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`/api/stations?search=${encodeURIComponent(debouncedTerm)}`);
+                const res = await fetch(`/api/stations?q=${encodeURIComponent(debouncedTerm)}`);
                 const data = await res.json();
                 setResults(data.results || []);
                 // Clear old edits/status when searching new things to avoid confusion
