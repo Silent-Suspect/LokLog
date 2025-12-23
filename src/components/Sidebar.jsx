@@ -1,7 +1,7 @@
 import { LayoutDashboard, Settings, Wrench, FileText, TrainFront } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen }) => {
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: FileText, label: 'LokLog', path: '/loklog' },
@@ -10,7 +10,13 @@ const Sidebar = () => {
   ];
 
   return (
-    <aside className="w-64 bg-card flex flex-col h-screen fixed left-0 top-0 border-r border-gray-800">
+    <aside className={`
+        w-64 bg-card flex flex-col h-screen border-r border-gray-800
+        fixed top-0 left-0 z-50
+        transition-transform duration-300 ease-in-out
+        md:translate-x-0
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+    `}>
       <div className="p-6 border-b border-gray-800">
         <h1 className="text-2xl font-bold flex items-center gap-3 text-white">
           <div className="w-10 h-10 bg-accent-blue rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/20">
