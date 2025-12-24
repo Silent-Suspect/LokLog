@@ -1,0 +1,116 @@
+import { createClerkClient, verifyToken } from '@clerk/backend';
+
+// Helper: Standard Response Headers
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// Handle OPTIONS
+export async function onRequestOptions() {
+    return new Response(null, { headers: corsHeaders });
+}
+
+// GET: Load Shift for Date
+export async function onRequestGet(context) {
+    try {
+        const { searchParams } = new URL(context.request.url);
+        const date = searchParams.get('date');
+
+        if (!date) return new Response("Missing date parameter", { status: 400, headers: corsHeaders });
+
+        // Auth Check
+        const authHeader = context.request.headers.get('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+        }
+        const token = authHeader.split(' ')[1];
+        const verifiedToken = await verifyToken(token, { secretKey: context.env.CLERK_SECRET_KEY });
+        const userId = verifiedToken.sub;
+
+        // Fetch Shift
+        const shift = await context.env.DB.prepare(
+            "SELECT * FROM shifts WHERE user_id = ? AND date = ?"
+        ).bind(userId, date).first();
+
+        let segments = [];
+        if (shift) {
+            const { results } = await context.env.DB.prepare(
+                "SELECT * FROM segments WHERE shift_id = ? ORDER BY order_index ASC"
+            ).bind(shift.id).all();
+            segments = results;
+        }
+
+        return Response.json({ shift, segments }, { headers: corsHeaders });
+
+    } catch (err) {
+        return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+    }
+}
+
+// PUT: Save Shift
+export async function onRequestPut(context) {
+    try {
+        // Auth Check
+        const authHeader = context.request.headers.get('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+        }
+        const token = authHeader.split(' ')[1];
+        const verifiedToken = await verifyToken(token, { secretKey: context.env.CLERK_SECRET_KEY });
+        const userId = verifiedToken.sub;
+
+        const data = await context.request.json();
+        const { shift, segments } = data; // shift object, segments array
+
+        if (!shift || !shift.date) return new Response("Invalid data", { status: 400, headers: corsHeaders });
+
+        const shiftId = shift.id || crypto.randomUUID();
+
+        const batch = [];
+
+        // 1. Insert/Replace Shift
+        batch.push(context.env.DB.prepare(`
+            INSERT OR REPLACE INTO shifts (
+                id, user_id, date, start_time, end_time,
+                km_start, km_end, 
+                energy_18_start, energy_18_end, 
+                energy_28_start, energy_28_end,
+                status_json, comments
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+            shiftId, userId, shift.date, shift.start_time, shift.end_time,
+            shift.km_start, shift.km_end,
+            shift.energy_18_start, shift.energy_18_end,
+            shift.energy_28_start, shift.energy_28_end,
+            JSON.stringify(shift.flags), shift.notes
+        ));
+
+        // 2. Delete old segments
+        batch.push(context.env.DB.prepare("DELETE FROM segments WHERE shift_id = ?").bind(shiftId));
+
+        // 3. Insert new segments
+        segments.forEach((seg, index) => {
+            batch.push(context.env.DB.prepare(`
+                INSERT INTO segments (
+                    shift_id, order_index, 
+                    train_nr, loco_nr, from_station, to_station, 
+                    departure, arrival, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+                shiftId, index,
+                seg.train_nr, seg.tfz, seg.from_code, seg.to_code,
+                seg.departure, seg.arrival, seg.notes
+            ));
+        });
+
+        await context.env.DB.batch(batch);
+
+        return Response.json({ success: true, id: shiftId }, { headers: corsHeaders });
+
+    } catch (err) {
+        console.error("Save Error:", err);
+        return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+    }
+}
