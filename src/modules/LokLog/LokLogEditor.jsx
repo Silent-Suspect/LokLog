@@ -330,7 +330,15 @@ const LokLogEditor = () => {
                     newRow.height = baseHeight;
                     newRow.commit();
 
-                    // Merge A-N
+                    // FIX: Defensive Unmerge to prevent "Cannot merge already merged cells"
+                    // spliceRows sometimes inherits the merge from the row above (Row 34).
+                    try {
+                        ws.unMergeCells(`A${currentRow}:N${currentRow}`);
+                    } catch (e) {
+                        // Ignore error if cells were not merged to begin with
+                    }
+
+                    // Now it is safe to merge A-N
                     ws.mergeCells(currentRow, 1, currentRow, 14);
 
                     // Apply Data & Style
