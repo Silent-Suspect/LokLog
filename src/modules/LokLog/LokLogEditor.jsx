@@ -368,13 +368,24 @@ const LokLogEditor = () => {
                         }
                     });
 
-                    // 4. FIX: "Bulldozer" Merge Strategy
-                    // Step A: Explicitly UNMERGE first to remove template conflicts
+                    // 4. FIX: "Nuclear" Merge Strategy
+                    // Scan every cell in the target range to find conflicting merges and break them individually
+                    for (let c = 1; c <= 14; c++) {
+                        const cell = newRow.getCell(c);
+                        if (cell.isMerged && cell.master) {
+                            try {
+                                // Break the specific merge block this cell belongs to
+                                ws.unmergeCells(cell.master.address);
+                            } catch (e) {
+                                // Ignore unmerge errors
+                            }
+                        }
+                    }
+
+                    // Just in case, try the broad unmerge as well
                     try {
                         ws.unmergeCells(currentRow, 1, currentRow, 14);
-                    } catch (e) {
-                        // Ignore error if cells weren't merged to begin with
-                    }
+                    } catch (e) { }
 
                     // Step B: Now Force the Merge (A to N)
                     try {
