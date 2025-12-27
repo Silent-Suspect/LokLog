@@ -319,46 +319,48 @@ const LokLogEditor = () => {
             if (shift.notes) notesQueue.push(...smartSplit(shift.notes));
 
             // ---------------------------------------------------------
-            // TOTAL STANDARDIZATION LOGIC (HARDCODED STYLES)
+            // CONDITIONAL LOGIC (Safe Zone vs Overflow)
             // ---------------------------------------------------------
             currentRow = 30;
+            const SAFE_ROWS_END = 34;
 
             notesQueue.forEach(note => {
-                // 1. Check for Overflow -> Insert fresh row
-                if (currentRow >= 35) {
-                    // Start, DeleteCount, InsertItems (1 empty array = 1 row)
-                    ws.spliceRows(currentRow, 0, []);
-                }
+                if (currentRow <= SAFE_ROWS_END) {
+                    // CASE A: EXISTING TEMPLATE ROW (30-34)
+                    // Trust the template. Just write text.
+                    const cell = ws.getCell(`A${currentRow}`);
+                    cell.value = note;
+                    cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+                } else {
+                    // CASE B: OVERFLOW (NEW ROW)
+                    // 1. Insert new row
+                    ws.insertRow(currentRow, []);
+                    const newRow = ws.getRow(currentRow);
 
-                const row = ws.getRow(currentRow);
-                row.height = 15; // Standard height
+                    // 2. Merge A-N
+                    try {
+                        ws.mergeCells(currentRow, 1, currentRow, 14);
+                    } catch (e) { console.warn(e); }
 
-                // 2. Clean Slate: Unmerge potential conflicts
-                try {
-                    ws.unmergeCells(`A${currentRow}:N${currentRow}`);
-                } catch (e) { }
+                    // 3. Write & Style
+                    const cell = ws.getCell(`A${currentRow}`);
+                    cell.value = note;
 
-                // 3. Force Merge
-                try {
-                    ws.mergeCells(`A${currentRow}:N${currentRow}`);
-                } catch (e) {
-                    console.error('Merge failed:', e);
-                }
-
-                // 4. Hardcoded Styles (Bypass Template Corruption)
-                const cell = ws.getCell(`A${currentRow}`);
-                cell.value = note;
-                cell.style = {
-                    font: { name: 'Arial', size: 10 },
-                    alignment: { vertical: 'top', horizontal: 'left', wrapText: true },
-                    border: {
-                        top: { style: 'thin' },
+                    // Hardcode Style for NEW rows only
+                    cell.font = { name: 'Arial', size: 10 };
+                    cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+                    cell.border = {
                         left: { style: 'thin' },
-                        bottom: { style: 'thin' },
-                        right: { style: 'medium' }
-                    }
-                };
+                        bottom: { style: 'thin' }
+                    };
 
+                    // 4. Fix Right Border on Column N (14)
+                    const lastCell = newRow.getCell(14);
+                    lastCell.border = {
+                        right: { style: 'medium' }, // Black outer frame
+                        bottom: { style: 'thin' }
+                    };
+                }
                 currentRow++;
             });
 
