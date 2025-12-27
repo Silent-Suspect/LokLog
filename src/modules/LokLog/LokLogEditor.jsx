@@ -279,25 +279,47 @@ const LokLogEditor = () => {
             // Footnotes & General Comments (Start at A30)
             let currentRow = 30;
 
-            // Helper: Smart Split (140 chars)
-            const smartSplit = (text, limit = 140) => {
+            // Helper: Robust Word-Based Split (Limit 125 for A4 fit)
+            const smartSplit = (text, limit = 125) => {
                 if (!text) return [];
-                const safeText = text.toString();
-                if (safeText.length <= limit) return [safeText];
+                const lines = [];
 
-                let splitIndex = safeText.lastIndexOf(' ', limit);
-                if (splitIndex === -1) splitIndex = limit; // No space found, hard cut
+                // 1. Preserve user's manual paragraphs (Enter key)
+                const paragraphs = text.toString().split('\n');
 
-                const part = safeText.substring(0, splitIndex);
-                const remainder = safeText.substring(splitIndex).trim();
+                paragraphs.forEach(para => {
+                    // If paragraph fits, just add it
+                    if (para.length <= limit) {
+                        lines.push(para);
+                        return;
+                    }
 
-                return [part, ...smartSplit(remainder, limit)];
+                    // 2. Split into words and rebuild
+                    const words = para.split(' ');
+                    let currentLine = words[0];
+
+                    for (let i = 1; i < words.length; i++) {
+                        const word = words[i];
+                        // Check if adding the word exceeds limit
+                        if ((currentLine + ' ' + word).length <= limit) {
+                            currentLine += ' ' + word;
+                        } else {
+                            // Push full line and start new one
+                            lines.push(currentLine);
+                            currentLine = word;
+                        }
+                    }
+                    if (currentLine) lines.push(currentLine);
+                });
+
+                return lines;
             };
 
             // Build Queue with Wrapping
             let notesQueue = [];
-            extraComments.forEach(note => notesQueue.push(...smartSplit(note, 140)));
-            if (shift.notes) notesQueue.push(...smartSplit(shift.notes, 140));
+            // Rely on default limit 125
+            extraComments.forEach(note => notesQueue.push(...smartSplit(note)));
+            if (shift.notes) notesQueue.push(...smartSplit(shift.notes));
 
             // Capture Template Styles from Row 32 (Master Template)
             const templateRow = ws.getRow(32);
