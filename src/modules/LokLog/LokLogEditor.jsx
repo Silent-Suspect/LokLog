@@ -279,39 +279,36 @@ const LokLogEditor = () => {
             // Footnotes & General Comments (Start at A30)
             let currentRow = 30;
 
-            // Helper: Robust Word-Based Split (Limit 125 for A4 fit)
+            // Helper: Robust Word-Based Split (Limit 125)
             const smartSplit = (text, limit = 125) => {
                 if (!text) return [];
                 const lines = [];
-
-                // 1. Preserve user's manual paragraphs (Enter key)
+                // Preserve manual paragraphs
                 const paragraphs = text.toString().split('\n');
 
                 paragraphs.forEach(para => {
-                    // If paragraph fits, just add it
                     if (para.length <= limit) {
                         lines.push(para);
                         return;
                     }
+                    // FIX: Filter out empty strings to prevent "ghost" words
+                    const words = para.split(' ').filter(w => w.length > 0);
 
-                    // 2. Split into words and rebuild
-                    const words = para.split(' ');
+                    if (words.length === 0) return; // Skip empty lines
+
                     let currentLine = words[0];
 
                     for (let i = 1; i < words.length; i++) {
                         const word = words[i];
-                        // Check if adding the word exceeds limit
                         if ((currentLine + ' ' + word).length <= limit) {
                             currentLine += ' ' + word;
                         } else {
-                            // Push full line and start new one
                             lines.push(currentLine);
                             currentLine = word;
                         }
                     }
                     if (currentLine) lines.push(currentLine);
                 });
-
                 return lines;
             };
 
@@ -370,15 +367,6 @@ const LokLogEditor = () => {
                         }
                     });
 
-                    // 4. FIX: Enforce Right Border on Last Cell
-                    if (lastColIndex > 0) {
-                        const lastCell = newRow.getCell(lastColIndex);
-                        lastCell.border = {
-                            ...lastCell.border,
-                            right: { style: 'medium' }
-                        };
-                    }
-
                     // 5. Replicate Merges
                     templateMerges.forEach(m => {
                         try {
@@ -387,6 +375,16 @@ const LokLogEditor = () => {
                             console.warn('Merge replication warning:', e);
                         }
                     });
+
+                    // 6. FIX: Force Right Border on Column N (Index 14)
+                    // This restores the outer frame of the table
+                    const lastCell = newRow.getCell(14); // Column N
+                    lastCell.border = {
+                        top: lastCell.border?.top,
+                        bottom: lastCell.border?.bottom,
+                        left: lastCell.border?.left,
+                        right: { style: 'medium', color: { argb: 'FF000000' } } // Force visible black border
+                    };
                 }
 
                 // Write Content
