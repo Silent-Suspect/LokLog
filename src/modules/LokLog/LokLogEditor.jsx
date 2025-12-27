@@ -193,9 +193,9 @@ const LokLogEditor = () => {
             if (note.length > 15) {
                 overflowCounter++;
                 const starMarker = '*'.repeat(overflowCounter) + ')';
-                const prefix = seg.train_nr ? `[Zug ${seg.train_nr}]` : '[Zug ?]';
+                // Prefix removed as per request (redundant with star link)
 
-                extraComments.push(`${starMarker} ${prefix} ${note}`);
+                extraComments.push(`${starMarker} ${note}`);
                 note = starMarker;
             }
             processedSegments.push({ ...seg, notes: note });
