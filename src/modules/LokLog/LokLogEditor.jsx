@@ -323,28 +323,32 @@ const LokLogEditor = () => {
                     cell.value = note;
                     cell.alignment = { ...cell.alignment, wrapText: true, vertical: 'top' };
                 } else {
-                    // CASE B: OVERFLOW ZONE (Rows 35+) - Insert & Style
+                    // CASE B: OVERFLOW ZONE (Rows 35+)
+                    // 1. Insert & Format Height
                     ws.spliceRows(currentRow, 0, new Array(14).fill(null));
-
                     const newRow = ws.getRow(currentRow);
                     newRow.height = baseHeight;
                     newRow.commit();
 
-                    // FIX: Defensive Unmerge to prevent "Cannot merge already merged cells"
-                    // spliceRows sometimes inherits the merge from the row above (Row 34).
+                    // 2. Safety Unmerge
                     try {
                         ws.unMergeCells(`A${currentRow}:N${currentRow}`);
-                    } catch (e) {
-                        // Ignore error if cells were not merged to begin with
-                    }
+                    } catch (e) { }
 
-                    // Now it is safe to merge A-N
+                    // 3. Merge A-N
                     ws.mergeCells(currentRow, 1, currentRow, 14);
 
-                    // Apply Data & Style
+                    // 4. Apply Data & Base Style to Master Cell (A)
                     const cell = ws.getCell(`A${currentRow}`);
                     cell.value = note;
                     cell.style = baseStyle;
+
+                    // 5. TRICK 17: Apply Left Border to Neighboring Cell (O)
+                    // Column O is index 15. This visually closes the box on the right side of N.
+                    const neighborCell = ws.getCell(currentRow, 15);
+                    neighborCell.border = {
+                        left: { style: 'medium' } // Thick black border
+                    };
                 }
                 currentRow++;
             });
