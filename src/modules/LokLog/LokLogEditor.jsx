@@ -319,78 +319,46 @@ const LokLogEditor = () => {
             if (shift.notes) notesQueue.push(...smartSplit(shift.notes));
 
             // ---------------------------------------------------------
-            // PRE-EXPANSION LOGIC (SAFE ZONE INSERTION)
-            // ---------------------------------------------------------
-
-            // 1. Calculate Capacity
-            const totalLines = notesQueue.length;
-            const availableLines = 5; // Rows 30, 31, 32, 33, 34
-            const neededRows = totalLines - availableLines;
-
-            // 2. Expand Table if needed (Insert at Row 32 - "Safe Zone")
-            if (neededRows > 0) {
-                // Capture Template Styles from Row 32 BEFORE shifting
-                const templateRow = ws.getRow(32);
-                const templateHeight = templateRow.height;
-                const templateStyles = [];
-                templateRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                    if (colNumber <= 14) { // Only capture relevant columns A-N
-                        templateStyles[colNumber] = JSON.parse(JSON.stringify(cell.style));
-                    }
-                });
-
-                // Insert all needed rows at once at Row 32
-                // Using spliceRows to shift existing content (footer) down
-                ws.spliceRows(32, 0, ...new Array(neededRows).fill([]));
-
-                // 3. Apply Styles to New Rows
-                for (let i = 0; i < neededRows; i++) {
-                    const r = 32 + i;
-                    const newRow = ws.getRow(r);
-
-                    newRow.height = templateHeight;
-
-                    // Apply Cell Styles
-                    templateStyles.forEach((style, colIdx) => {
-                        if (style) {
-                            newRow.getCell(colIdx).style = style;
-                        }
-                    });
-
-                    // Force Merge (Clean Slate Strategy)
-                    try {
-                        ws.unmergeCells(`A${r}:N${r}`);
-                    } catch (e) { }
-                    try {
-                        ws.mergeCells(`A${r}:N${r}`);
-                    } catch (e) { }
-
-                    // Force Alignment
-                    newRow.getCell(1).alignment = {
-                        vertical: 'top',
-                        horizontal: 'left',
-                        wrapText: true
-                    };
-
-                    // Force Right Border
-                    const lastCell = newRow.getCell(14);
-                    lastCell.border = {
-                        top: lastCell.border?.top,
-                        bottom: lastCell.border?.bottom,
-                        left: lastCell.border?.left,
-                        right: { style: 'medium', color: { argb: 'FF000000' } }
-                    };
-                }
-            }
-
-            // ---------------------------------------------------------
-            // WRITE DATA (Simple Loop)
+            // TOTAL STANDARDIZATION LOGIC (HARDCODED STYLES)
             // ---------------------------------------------------------
             currentRow = 30;
+
             notesQueue.forEach(note => {
+                // 1. Check for Overflow -> Insert fresh row
+                if (currentRow >= 35) {
+                    // Start, DeleteCount, InsertItems (1 empty array = 1 row)
+                    ws.spliceRows(currentRow, 0, []);
+                }
+
+                const row = ws.getRow(currentRow);
+                row.height = 15; // Standard height
+
+                // 2. Clean Slate: Unmerge potential conflicts
+                try {
+                    ws.unmergeCells(`A${currentRow}:N${currentRow}`);
+                } catch (e) { }
+
+                // 3. Force Merge
+                try {
+                    ws.mergeCells(`A${currentRow}:N${currentRow}`);
+                } catch (e) {
+                    console.error('Merge failed:', e);
+                }
+
+                // 4. Hardcoded Styles (Bypass Template Corruption)
                 const cell = ws.getCell(`A${currentRow}`);
                 cell.value = note;
-                cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+                cell.style = {
+                    font: { name: 'Arial', size: 10 },
+                    alignment: { vertical: 'top', horizontal: 'left', wrapText: true },
+                    border: {
+                        top: { style: 'thin' },
+                        left: { style: 'thin' },
+                        bottom: { style: 'thin' },
+                        right: { style: 'medium' }
+                    }
+                };
+
                 currentRow++;
             });
 
