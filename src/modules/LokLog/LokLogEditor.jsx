@@ -357,33 +357,32 @@ const LokLogEditor = () => {
                     ws.insertRow(currentRow, []);
                     const newRow = ws.getRow(currentRow);
 
-                    // 2. Clone Row Height
+                    // 2. Clone Row Height from Template (Row 32)
                     newRow.height = templateHeight;
 
-                    // 3. Clone Cell Styles
+                    // 3. Clone Cell Styles from Template (Row 32)
                     templateStyles.forEach((style, colIdx) => {
                         if (style) {
-                            newRow.getCell(colIdx).style = style;
+                            const cell = newRow.getCell(colIdx);
+                            cell.style = style;
                         }
                     });
 
-                    // 5. Replicate Merges
-                    templateMerges.forEach(m => {
-                        try {
-                            ws.mergeCells(currentRow, m.start, currentRow, m.end);
-                        } catch (e) {
-                            console.warn('Merge replication warning:', e);
-                        }
-                    });
+                    // 4. FORCE MERGE: Column A (1) to Column N (14)
+                    // We do not rely on copying template merges anymore. We force full width.
+                    try {
+                        ws.mergeCells(currentRow, 1, currentRow, 14);
+                    } catch (e) {
+                        console.warn('Merge failed:', e);
+                    }
 
-                    // 6. FIX: Force Right Border on Column N (Index 14)
-                    // This restores the outer frame of the table
-                    const lastCell = newRow.getCell(14); // Column N
+                    // 5. Force Right Border on Last Cell (Column N / 14)
+                    const lastCell = newRow.getCell(14);
                     lastCell.border = {
                         top: lastCell.border?.top,
                         bottom: lastCell.border?.bottom,
                         left: lastCell.border?.left,
-                        right: { style: 'medium', color: { argb: 'FF000000' } } // Force visible black border
+                        right: { style: 'medium', color: { argb: 'FF000000' } }
                     };
                 }
 
