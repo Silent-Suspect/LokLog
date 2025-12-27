@@ -281,16 +281,69 @@ const LokLogEditor = () => {
             const notesQueue = [...extraComments];
             if (shift.notes) notesQueue.push(shift.notes);
 
+            // Capture Template Styles from Row 32 (Master Template)
+            const templateRow = ws.getRow(32);
+            const templateHeight = templateRow.height;
+            const templateStyles = [];
+            const templateMerges = [];
+
+            // Capture Cell Styles
+            templateRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                templateStyles[colNumber] = JSON.parse(JSON.stringify(cell.style));
+            });
+
+            // Capture Merges in Row 32
+            // ExcelJS doesn't easily expose "row merges", so we scan columns to find master cells
+            // Assuming simplified horizontal merges for this template
+            for (let c = 1; c <= 26; c++) {
+                const cell = templateRow.getCell(c);
+                if (cell.isMerged && cell.master.address === cell.address) {
+                    // Start of a merge, find end
+                    let endCol = c;
+                    // Check next cells to see if they share the same master
+                    for (let next = c + 1; next <= 30; next++) {
+                        const nextCell = templateRow.getCell(next);
+                        if (nextCell.isMerged && nextCell.master.address === cell.address) {
+                            endCol = next;
+                        } else {
+                            break;
+                        }
+                    }
+                    if (endCol > c) {
+                        templateMerges.push({ start: c, end: endCol });
+                    }
+                }
+            }
+
             notesQueue.forEach(note => {
                 // Critical: Check for overflow at Row 35 (Start of Template Footer)
                 if (currentRow >= 35) {
-                    // Insert new row at current position, shifting existing content down
-                    // 'i' flag inherits style from the row above (ExcelJS specific behavior usually handled by insertRow defaults or manual styling)
+                    // 1. Insert new row
                     ws.insertRow(currentRow, []);
+                    const newRow = ws.getRow(currentRow);
+
+                    // 2. Clone Row Height
+                    newRow.height = templateHeight;
+
+                    // 3. Clone Cell Styles
+                    templateStyles.forEach((style, colIdx) => {
+                        if (style) {
+                            newRow.getCell(colIdx).style = style;
+                        }
+                    });
+
+                    // 4. Replicate Merges
+                    templateMerges.forEach(m => {
+                        try {
+                            ws.mergeCells(currentRow, m.start, currentRow, m.end);
+                        } catch (e) {
+                            console.warn('Merge replication warning:', e);
+                        }
+                    });
                 }
 
+                // Write Content
                 ws.getCell(`A${currentRow}`).value = note;
-                // Optional: Ensure text wrapping or styling if needed
                 ws.getCell(`A${currentRow}`).alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
 
                 currentRow++;
