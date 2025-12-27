@@ -12,6 +12,28 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         runtimeCaching: [
           {
+            // SPECIFIC RULE FOR CLERK AUTHENTICATION
+            // Matches the Clerk JS bundle and the Clerk dev domain
+            urlPattern: ({ url }) => url.href.includes('clerk.browser.js') || url.hostname.includes('clerk.accounts.dev'),
+
+            // StaleWhileRevalidate: Use the cached version immediately (fast/offline), 
+            // but try to update it in the background if network is available.
+            handler: 'StaleWhileRevalidate',
+
+            options: {
+              cacheName: 'clerk-js-cache',
+              expiration: {
+                maxEntries: 10,
+                // Keep the script for 7 days
+                maxAgeSeconds: 60 * 60 * 24 * 7
+              },
+              cacheableResponse: {
+                // Cache valid responses and opaque responses (0) from CORS
+                statuses: [0, 200]
+              }
+            }
+          },
+          {
             urlPattern: ({ url }) => url.pathname.startsWith('/api'),
             handler: 'NetworkFirst',
             options: {
