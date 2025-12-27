@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-react';
-import { Save, FileDown, Plus, Trash2, TrainFront, Clock, Zap, CheckSquare, Calendar, ArrowRight } from 'lucide-react';
+import { Save, FileDown, Plus, Trash2, TrainFront, Clock, Zap, CheckSquare, Calendar, ArrowRight, Wifi, WifiOff } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
@@ -13,6 +13,19 @@ const LokLogEditor = () => {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [hasDraft, setHasDraft] = useState(false);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    // Online Status Listener
+    useEffect(() => {
+        const handleStatus = () => setIsOnline(navigator.onLine);
+        window.addEventListener('online', handleStatus);
+        window.addEventListener('offline', handleStatus);
+        return () => {
+            window.removeEventListener('online', handleStatus);
+            window.removeEventListener('offline', handleStatus);
+        };
+    }, []);
+
     const [shift, setShift] = useState({
         id: null,
         start_time: '', end_time: '', pause: 0,
@@ -30,22 +43,23 @@ const LokLogEditor = () => {
     // Load Data
     useEffect(() => {
         loadShift(date);
-    }, [date]);
+    }, [date, isOnline]); // Reload when date changes OR connection comes back
 
-    // Auto-Save Draft Hook
+    // Auto-Save Draft Hook (DATE SPECIFIC)
     useEffect(() => {
         const timeoutId = setTimeout(() => {
-            if (shift.start_time || shift.km_start || Object.keys(shift.flags).length > 0) {
+            // Only save if there is some data
+            if (shift.start_time || shift.km_start || Object.keys(shift.flags).length > 0 || segments.length > 0) {
                 const draftData = {
                     date,
                     shift,
                     segments,
                     timestamp: new Date().getTime()
                 };
-                localStorage.setItem('loklog_draft_shift', JSON.stringify(draftData));
+                localStorage.setItem(`loklog_draft_${date}`, JSON.stringify(draftData));
                 setHasDraft(true);
             }
-        }, 500); // Debounce 500ms
+        }, 500);
 
         return () => clearTimeout(timeoutId);
     }, [shift, segments, date]);
@@ -53,104 +67,93 @@ const LokLogEditor = () => {
     const loadShift = async (selectedDate) => {
         setLoading(true);
         setHasDraft(false);
+        const draftKey = `loklog_draft_${selectedDate}`;
+
         try {
-            // Check Local Draft First
-            const savedDraft = localStorage.getItem('loklog_draft_shift');
-            let draftFound = false;
+            // STRATEGY: 
+            // 1. If Offline -> Load Local Only
+            // 2. If Online -> Try API -> If Fail/Empty, Load Local
 
-            if (savedDraft) {
-                const parsedDraft = JSON.parse(savedDraft);
-                if (parsedDraft.date === selectedDate) {
-                    setShift(parsedDraft.shift);
-                    setSegments(parsedDraft.segments);
-                    setHasDraft(true);
-                    draftFound = true;
-                    // Don't return here, we still want to try fetching from server to compare IDs or get updates
-                    // But if server is empty, we keep draft. If server has data, we might have a conflict.
-                    // For now, simpler logic: Draft overrides empty server. Server overrides draft if server exists?
-                    // User Request says: "prioritize this over the empty initial state". 
-                    // Let's load server, and if server has valid ID, maybe use server? 
-                    // Actually, usually draft is "newer" than server.
-                    // Let's stick to the prompt: "If it matches, parse it and set it as the shift state".
-                }
+            if (!isOnline) {
+                console.log("Offline Mode: Loading from local storage");
+                loadFromLocal(draftKey, selectedDate);
+                setLoading(false);
+                return;
             }
 
-            const token = await getToken();
-            const res = await fetch(`/api/shifts?date=${selectedDate}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-
-            if (data.shift) {
-                // Server has data.
-                // Strategy: If we found a draft, we should probably check if draft.id matches data.shift.id?
-                // Or simply prompt user? For now, I will prioritize server if it exists, UNLESS user explicitly wants offline mode.
-                // Prompt says: "prioritize this over the empty initial state".
-                // So if server returns data.shift, we overwrite the draft in state.
-                // BUT if server returns nothing (else block), we keep the draft if we found one.
-
-                setShift({
-                    ...data.shift,
-                    // Map DB cols to State props
-                    energy1_start: data.shift.energy_18_start,
-                    energy1_end: data.shift.energy_18_end,
-                    energy2_start: data.shift.energy_28_start,
-                    energy2_end: data.shift.energy_28_end,
-                    notes: data.shift.comments,
-                    energy2_start: data.shift.energy_28_start,
-                    energy2_end: data.shift.energy_28_end,
-                    notes: data.shift.comments,
-                    flags: JSON.parse(data.shift.status_json || '{}')
+            // Online: Try Fetch
+            try {
+                const token = await getToken();
+                const res = await fetch(`/api/shifts?date=${selectedDate}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
-                setSegments(data.segments.map(s => ({
-                    ...s,
-                    tfz: s.loco_nr,
-                    from_code: s.from_station,
-                    to_code: s.to_station
-                })) || []);
 
-                // If we loaded from server, we technically don't have a "local draft" anymore that differs, unless we want to keep it?
-                // Let's clear hasDraft if we loaded confirmed server data to avoid confusion, 
-                // OR we accept that maybe the draft was for this exact server record.
-                // Simpler: If server loaded, we use server.
-                setHasDraft(false);
+                if (!res.ok) throw new Error('API Error');
 
-            } else {
-                // Server has NO data.
-                if (draftFound) {
-                    // We already set state from draft above. Just ensure we keep it.
-                    console.log("Loaded from local draft");
-                } else {
-                    // Reset to defaults if no entry exists and no draft
+                const data = await res.json();
+
+                if (data.shift) {
                     setShift({
-                        id: null,
-                        start_time: '', end_time: '', pause: 0,
-                        km_start: '', km_end: '',
-                        energy1_start: '', energy1_end: '',
-                        energy2_start: '', energy2_end: '',
-                        km_start: '', km_end: '',
-                        energy1_start: '', energy1_end: '',
-                        energy2_start: '', energy2_end: '',
-                        flags: {},
-                        notes: ''
+                        ...data.shift,
+                        energy1_start: data.shift.energy_18_start,
+                        energy1_end: data.shift.energy_18_end,
+                        energy2_start: data.shift.energy_28_start,
+                        energy2_end: data.shift.energy_28_end,
+                        notes: data.shift.comments,
+                        flags: JSON.parse(data.shift.status_json || '{}')
                     });
-                    setSegments([]);
+                    setSegments(data.segments.map(s => ({
+                        ...s,
+                        tfz: s.loco_nr,
+                        from_code: s.from_station,
+                        to_code: s.to_station
+                    })) || []);
+                    // We found server data, so technically no "unsaved draft" needed unless we want to keep it?
+                    // Usually server is authority.
+                    setHasDraft(false);
+                } else {
+                    // Server has no data -> Check Local
+                    const loaded = loadFromLocal(draftKey, selectedDate);
+                    if (!loaded) resetShift();
                 }
+            } catch (apiErr) {
+                console.warn("API Fetch failed, falling back to local:", apiErr);
+                const loaded = loadFromLocal(draftKey, selectedDate);
+                if (!loaded) resetShift();
             }
+
         } catch (err) {
-            console.error("Load failed", err);
-            // If load failed (offline?), we strictly rely on the draft we might have loaded at the top.
-            if (localStorage.getItem('loklog_draft_shift')) {
-                const savedDraft = JSON.parse(localStorage.getItem('loklog_draft_shift'));
-                if (savedDraft.date === selectedDate) {
-                    setShift(savedDraft.shift);
-                    setSegments(savedDraft.segments);
-                    setHasDraft(true);
-                }
-            }
+            console.error("Critical Load Error", err);
         } finally {
             setLoading(false);
         }
+    };
+
+    const loadFromLocal = (key, expectedDate) => {
+        const savedDraft = localStorage.getItem(key);
+        if (savedDraft) {
+            const parsed = JSON.parse(savedDraft);
+            if (parsed.date === expectedDate) {
+                setShift(parsed.shift);
+                setSegments(parsed.segments);
+                setHasDraft(true);
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const resetShift = () => {
+        setShift({
+            id: null,
+            start_time: '', end_time: '', pause: 0,
+            km_start: '', km_end: '',
+            energy1_start: '', energy1_end: '',
+            energy2_start: '', energy2_end: '',
+            flags: {},
+            notes: ''
+        });
+        setSegments([]);
     };
 
     // Calculations
@@ -158,8 +161,6 @@ const LokLogEditor = () => {
         if (!shift.start_time || !shift.end_time) return 0;
         const [h1, m1] = shift.start_time.split(':').map(Number);
         const [h2, m2] = shift.end_time.split(':').map(Number);
-        const start = h1 * 60 + m1;
-        const end = h2 * 60 + m2;
         let diff = end - start;
         if (diff < 0) diff += 24 * 60; // Over midnight
         return diff;
@@ -219,6 +220,33 @@ const LokLogEditor = () => {
     // Save Logic
     const handleSave = async () => {
         setSaving(true);
+        const draftKey = `loklog_draft_${date}`;
+
+        // 1. ALWAYS Save Locally First
+        try {
+            const draftData = {
+                date,
+                shift,
+                segments,
+                timestamp: new Date().getTime()
+            };
+            localStorage.setItem(draftKey, JSON.stringify(draftData));
+            setHasDraft(true);
+        } catch (e) {
+            console.error("Local Save failed", e);
+            alert("Warning: Could not save locally.");
+            setSaving(false);
+            return;
+        }
+
+        // 2. Check Online Status
+        if (!isOnline) {
+            setSaving(false);
+            alert("📡 Offline Mode: Saved to device safely. Will sync when online.");
+            return;
+        }
+
+        // 3. Online: Try Sync
         try {
             const token = await getToken();
             const res = await fetch('/api/shifts', {
@@ -231,7 +259,6 @@ const LokLogEditor = () => {
                     shift: {
                         ...shift,
                         date,
-                        // Map Props to DB Cols
                         energy_18_start: shift.energy1_start,
                         energy_18_end: shift.energy1_end,
                         energy_28_start: shift.energy2_start,
@@ -242,16 +269,24 @@ const LokLogEditor = () => {
             });
             if (!res.ok) throw new Error('Save failed');
             const data = await res.json();
-            setShift(s => ({ ...s, id: data.id })); // Update ID if new
+            setShift(s => ({ ...s, id: data.id }));
 
-            // Clear Draft on Success
-            localStorage.removeItem('loklog_draft_shift');
+            // Note: We keeping the draft as a backup even after sync, 
+            // or we could clear it?
+            // "Clear Draft: Update the handleSave function. Upon a successful API response... remove... localStorage"
+            // The user requested previously to remove it.
+            // But now specifically for "Offline First", keeping it as "last known good" is sometimes nice.
+            // However, following instructions:
+            // "Updated handleSave... if NO (offline): show toast... if YES (online): proceed"
+            // The previous request #339 cleared it.
+            // Let's clear it to be clean.
+            localStorage.removeItem(draftKey);
             setHasDraft(false);
 
-            alert('✅ Saved!');
+            alert('✅ Synced to Cloud!');
         } catch (err) {
             console.error(err);
-            alert('❌ Save failed');
+            alert('❌ Cloud Sync failed. Saved locally.');
         } finally {
             setSaving(false);
         }
@@ -446,10 +481,23 @@ const LokLogEditor = () => {
             {/* Header / Date Picker */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-card p-6 rounded-2xl border border-gray-800">
                 <div>
-                    <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                        <TrainFront className="text-accent-blue" />
-                        Fahrtenbuch
-                    </h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                            <TrainFront className="text-accent-blue" />
+                            Fahrtenbuch
+                        </h1>
+                        {isOnline ? (
+                            <span className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider bg-green-900/30 text-green-400 px-2 py-1 rounded-full border border-green-900/50">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                Online
+                            </span>
+                        ) : (
+                            <span className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider bg-red-900/30 text-red-400 px-2 py-1 rounded-full border border-red-900/50">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                Offline Mode
+                            </span>
+                        )}
+                    </div>
                     <p className="text-gray-400">Erfasse deine Schicht für {new Date(date).toLocaleDateString('de-DE')}</p>
                 </div>
                 <div className="flex items-center gap-2 bg-dark p-1 rounded-lg border border-gray-700">
