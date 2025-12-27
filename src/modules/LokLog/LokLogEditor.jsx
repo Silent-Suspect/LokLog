@@ -252,12 +252,18 @@ const LokLogEditor = () => {
             // "Ausfall nach DB" -> A2 (L7)
             if (shift.flags['Ausfall nach DB']) ws.getCell('L7').value = 'X';
 
-            // "Dienst verschoben" - Just handled in comments below
+            // Status Text Inputs (Specific Cells)
+            if (shift.flags.param_streckenkunde) {
+                ws.getCell('B8').value = shift.flags.param_streckenkunde;
+            }
+            if (shift.flags.param_dienst_verschoben) {
+                ws.getCell('F8').value = shift.flags.param_dienst_verschoben;
+            }
 
             // Process Segments & Comments
             const { processedSegments, extraComments } = processExportData(segments);
 
-            // Segments
+            // Segments (Rows 15, 17, 19, 21, 23)
             const rows = [15, 17, 19, 21, 23];
             processedSegments.slice(0, 5).forEach((seg, i) => {
                 const r = rows[i];
@@ -270,42 +276,20 @@ const LokLogEditor = () => {
                 ws.getCell(`L${r}`).value = seg.notes;
             });
 
-            // General Comments (Sonstige Bemerkungen)
-            // Gather all comments: shift.notes + extraComments + potential status info
-            let finalNotes = shift.notes || '';
+            // Footnotes & General Comments (Start at A30)
+            let currentRow = 30;
 
-            if (extraComments.length > 0) {
-                finalNotes += '\n\n' + extraComments.join('\n');
-            }
+            // 1. Footnotes (extraComments)
+            extraComments.forEach(note => {
+                ws.getCell(`A${currentRow}`).value = note;
+                currentRow++;
+            });
 
-            if (shift.flags['Streckenkunde / EW / BR'] && shift.flags.param_streckenkunde) {
-                finalNotes += `\n(Streckenkunde bei: ${shift.flags.param_streckenkunde})`;
+            // 2. General Comments (Sonstige Bemerkungen)
+            if (shift.notes) {
+                ws.getCell(`A${currentRow}`).value = shift.notes;
+                currentRow++; // Increment if needed for further logic
             }
-            if (shift.flags['Dienst verschoben'] && shift.flags.param_dienst_verschoben) {
-                finalNotes += `\n(Dienst verschoben um: ${shift.flags.param_dienst_verschoben})`;
-            }
-
-            // Assuming there is a cell for Sonstige Bemerkungen. 
-            // In the previous code there was no explicit mapping for `shift.notes` to the Excel sheet! 
-            // I see `ws.getCell('L${r}').value = seg.notes` for segments.
-            // I need to find where "Sonstige Bemerkungen" goes. 
-            // Looking at the template structure implied by previous code, there wasn't a global notes field being written.
-            // However, the requirement says "Add a large TextArea...". 
-            // I will assume cell 'A31' or similar is for comments based on typical layouts, 
-            // OR I will simply NOT write it if I don't know the address, 
-            // BUT wait, `notes: data.shift.comments` was loaded but NOT written in `handleExport`.
-            // I'll define a cell, say 'A31' (common for footer notes) or ask user?
-            // BETTER: I will add it to the export if I can find a logical place.
-            // Actually, the user asked to "Implement a helper function... moved to 'Sonstige Bemerkungen' section".
-            // Implementation: I will write `finalNotes` to a likely cell, let's guess 'A26' or 'A30'?
-            // Re-reading previous `handleExport`: `ws.getCell('H4')...`
-            // I will conservatively NOT write to a random cell to avoid overriding template data, 
-            // UNLESS I see a "Sonstige" field.
-            // Wait, the previous code didn't write `shift.notes` to Excel. 
-            // I will just prepare `finalNotes` and putting it in a cell usually reserved for this. 
-            // Let's try 'A30' or just leave it for now but ensure the Logic is there.
-            // Use 'A30' as a provisional placeholder.
-            ws.getCell('A30').value = finalNotes;
 
             // 3. Download
             const out = await workbook.xlsx.writeBuffer();
