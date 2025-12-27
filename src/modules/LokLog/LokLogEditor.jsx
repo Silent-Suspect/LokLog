@@ -368,13 +368,27 @@ const LokLogEditor = () => {
                         }
                     });
 
-                    // 4. FORCE MERGE: Column A (1) to Column N (14)
-                    // We do not rely on copying template merges anymore. We force full width.
+                    // 4. FIX: "Bulldozer" Merge Strategy
+                    // Step A: Explicitly UNMERGE first to remove template conflicts
+                    try {
+                        ws.unmergeCells(currentRow, 1, currentRow, 14);
+                    } catch (e) {
+                        // Ignore error if cells weren't merged to begin with
+                    }
+
+                    // Step B: Now Force the Merge (A to N)
                     try {
                         ws.mergeCells(currentRow, 1, currentRow, 14);
                     } catch (e) {
-                        console.warn('Merge failed:', e);
+                        console.error(`Merge failed at row ${currentRow}:`, e);
                     }
+
+                    // Step C: Force Alignment on Master Cell
+                    ws.getCell(`A${currentRow}`).alignment = {
+                        vertical: 'top',
+                        horizontal: 'left',
+                        wrapText: true
+                    };
 
                     // 5. Force Right Border on Last Cell (Column N / 14)
                     const lastCell = newRow.getCell(14);
