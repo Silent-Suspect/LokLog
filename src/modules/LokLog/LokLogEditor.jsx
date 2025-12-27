@@ -278,29 +278,45 @@ const LokLogEditor = () => {
 
             // Footnotes & General Comments (Start at A30)
             let currentRow = 30;
-            const notesQueue = [...extraComments];
-            if (shift.notes) notesQueue.push(shift.notes);
+
+            // Helper: Smart Split (140 chars)
+            const smartSplit = (text, limit = 140) => {
+                if (!text) return [];
+                const safeText = text.toString();
+                if (safeText.length <= limit) return [safeText];
+
+                let splitIndex = safeText.lastIndexOf(' ', limit);
+                if (splitIndex === -1) splitIndex = limit; // No space found, hard cut
+
+                const part = safeText.substring(0, splitIndex);
+                const remainder = safeText.substring(splitIndex).trim();
+
+                return [part, ...smartSplit(remainder, limit)];
+            };
+
+            // Build Queue with Wrapping
+            let notesQueue = [];
+            extraComments.forEach(note => notesQueue.push(...smartSplit(note, 140)));
+            if (shift.notes) notesQueue.push(...smartSplit(shift.notes, 140));
 
             // Capture Template Styles from Row 32 (Master Template)
             const templateRow = ws.getRow(32);
             const templateHeight = templateRow.height;
             const templateStyles = [];
             const templateMerges = [];
+            let lastColIndex = 0;
 
             // Capture Cell Styles
             templateRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
                 templateStyles[colNumber] = JSON.parse(JSON.stringify(cell.style));
+                if (colNumber > lastColIndex) lastColIndex = colNumber;
             });
 
             // Capture Merges in Row 32
-            // ExcelJS doesn't easily expose "row merges", so we scan columns to find master cells
-            // Assuming simplified horizontal merges for this template
             for (let c = 1; c <= 26; c++) {
                 const cell = templateRow.getCell(c);
                 if (cell.isMerged && cell.master.address === cell.address) {
-                    // Start of a merge, find end
                     let endCol = c;
-                    // Check next cells to see if they share the same master
                     for (let next = c + 1; next <= 30; next++) {
                         const nextCell = templateRow.getCell(next);
                         if (nextCell.isMerged && nextCell.master.address === cell.address) {
@@ -316,7 +332,7 @@ const LokLogEditor = () => {
             }
 
             notesQueue.forEach(note => {
-                // Critical: Check for overflow at Row 35 (Start of Template Footer)
+                // Critical: Check for overflow at Row 35
                 if (currentRow >= 35) {
                     // 1. Insert new row
                     ws.insertRow(currentRow, []);
@@ -332,7 +348,16 @@ const LokLogEditor = () => {
                         }
                     });
 
-                    // 4. Replicate Merges
+                    // 4. FIX: Enforce Right Border on Last Cell
+                    if (lastColIndex > 0) {
+                        const lastCell = newRow.getCell(lastColIndex);
+                        lastCell.border = {
+                            ...lastCell.border,
+                            right: { style: 'medium' }
+                        };
+                    }
+
+                    // 5. Replicate Merges
                     templateMerges.forEach(m => {
                         try {
                             ws.mergeCells(currentRow, m.start, currentRow, m.end);
