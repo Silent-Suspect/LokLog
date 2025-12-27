@@ -12,6 +12,7 @@ const LokLogEditor = () => {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [hasDraft, setHasDraft] = useState(false);
     const [shift, setShift] = useState({
         id: null,
         start_time: '', end_time: '', pause: 0,
@@ -31,9 +32,49 @@ const LokLogEditor = () => {
         loadShift(date);
     }, [date]);
 
+    // Auto-Save Draft Hook
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            if (shift.start_time || shift.km_start || Object.keys(shift.flags).length > 0) {
+                const draftData = {
+                    date,
+                    shift,
+                    segments,
+                    timestamp: new Date().getTime()
+                };
+                localStorage.setItem('loklog_draft_shift', JSON.stringify(draftData));
+                setHasDraft(true);
+            }
+        }, 500); // Debounce 500ms
+
+        return () => clearTimeout(timeoutId);
+    }, [shift, segments, date]);
+
     const loadShift = async (selectedDate) => {
         setLoading(true);
+        setHasDraft(false);
         try {
+            // Check Local Draft First
+            const savedDraft = localStorage.getItem('loklog_draft_shift');
+            let draftFound = false;
+
+            if (savedDraft) {
+                const parsedDraft = JSON.parse(savedDraft);
+                if (parsedDraft.date === selectedDate) {
+                    setShift(parsedDraft.shift);
+                    setSegments(parsedDraft.segments);
+                    setHasDraft(true);
+                    draftFound = true;
+                    // Don't return here, we still want to try fetching from server to compare IDs or get updates
+                    // But if server is empty, we keep draft. If server has data, we might have a conflict.
+                    // For now, simpler logic: Draft overrides empty server. Server overrides draft if server exists?
+                    // User Request says: "prioritize this over the empty initial state". 
+                    // Let's load server, and if server has valid ID, maybe use server? 
+                    // Actually, usually draft is "newer" than server.
+                    // Let's stick to the prompt: "If it matches, parse it and set it as the shift state".
+                }
+            }
+
             const token = await getToken();
             const res = await fetch(`/api/shifts?date=${selectedDate}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -41,6 +82,13 @@ const LokLogEditor = () => {
             const data = await res.json();
 
             if (data.shift) {
+                // Server has data.
+                // Strategy: If we found a draft, we should probably check if draft.id matches data.shift.id?
+                // Or simply prompt user? For now, I will prioritize server if it exists, UNLESS user explicitly wants offline mode.
+                // Prompt says: "prioritize this over the empty initial state".
+                // So if server returns data.shift, we overwrite the draft in state.
+                // BUT if server returns nothing (else block), we keep the draft if we found one.
+
                 setShift({
                     ...data.shift,
                     // Map DB cols to State props
@@ -60,24 +108,46 @@ const LokLogEditor = () => {
                     from_code: s.from_station,
                     to_code: s.to_station
                 })) || []);
+
+                // If we loaded from server, we technically don't have a "local draft" anymore that differs, unless we want to keep it?
+                // Let's clear hasDraft if we loaded confirmed server data to avoid confusion, 
+                // OR we accept that maybe the draft was for this exact server record.
+                // Simpler: If server loaded, we use server.
+                setHasDraft(false);
+
             } else {
-                // Reset to defaults if no entry exists
-                setShift({
-                    id: null,
-                    start_time: '', end_time: '', pause: 0,
-                    km_start: '', km_end: '',
-                    energy1_start: '', energy1_end: '',
-                    energy2_start: '', energy2_end: '',
-                    km_start: '', km_end: '',
-                    energy1_start: '', energy1_end: '',
-                    energy2_start: '', energy2_end: '',
-                    flags: {},
-                    notes: ''
-                });
-                setSegments([]);
+                // Server has NO data.
+                if (draftFound) {
+                    // We already set state from draft above. Just ensure we keep it.
+                    console.log("Loaded from local draft");
+                } else {
+                    // Reset to defaults if no entry exists and no draft
+                    setShift({
+                        id: null,
+                        start_time: '', end_time: '', pause: 0,
+                        km_start: '', km_end: '',
+                        energy1_start: '', energy1_end: '',
+                        energy2_start: '', energy2_end: '',
+                        km_start: '', km_end: '',
+                        energy1_start: '', energy1_end: '',
+                        energy2_start: '', energy2_end: '',
+                        flags: {},
+                        notes: ''
+                    });
+                    setSegments([]);
+                }
             }
         } catch (err) {
             console.error("Load failed", err);
+            // If load failed (offline?), we strictly rely on the draft we might have loaded at the top.
+            if (localStorage.getItem('loklog_draft_shift')) {
+                const savedDraft = JSON.parse(localStorage.getItem('loklog_draft_shift'));
+                if (savedDraft.date === selectedDate) {
+                    setShift(savedDraft.shift);
+                    setSegments(savedDraft.segments);
+                    setHasDraft(true);
+                }
+            }
         } finally {
             setLoading(false);
         }
@@ -173,6 +243,11 @@ const LokLogEditor = () => {
             if (!res.ok) throw new Error('Save failed');
             const data = await res.json();
             setShift(s => ({ ...s, id: data.id })); // Update ID if new
+
+            // Clear Draft on Success
+            localStorage.removeItem('loklog_draft_shift');
+            setHasDraft(false);
+
             alert('✅ Saved!');
         } catch (err) {
             console.error(err);
@@ -286,7 +361,7 @@ const LokLogEditor = () => {
             const baseHeight = refRow.height;
 
             // Helper: Word-Based Split
-            const smartSplit = (text, limit = 125) => {
+            const smartSplit = (text, limit = 135) => {
                 if (!text) return [];
                 const lines = [];
                 const paragraphs = text.toString().split('\n');
@@ -610,7 +685,12 @@ const LokLogEditor = () => {
             )}
 
             {/* Sticky Footer Actions */}
-            <div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex justify-end gap-4">
+            <div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex justify-end items-center gap-4">
+                {hasDraft && (
+                    <span className="text-xs text-green-500 font-mono flex items-center gap-1 animate-pulse mr-auto md:mr-0">
+                        <CheckSquare size={14} /> Draft saved locally
+                    </span>
+                )}
                 <button
                     onClick={handleExport}
                     disabled={saving}
