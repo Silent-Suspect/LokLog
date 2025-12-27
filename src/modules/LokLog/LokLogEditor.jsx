@@ -367,7 +367,9 @@ const LokLogEditor = () => {
             // 3. Download
             const out = await workbook.xlsx.writeBuffer();
             const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            saveAs(blob, `Schichtbericht_${date}.xlsx`);
+
+            const fileName = `${date}_Fahrtenbericht_${user?.lastName || ''}, ${user?.firstName || ''}.xlsx`;
+            saveAs(blob, fileName);
 
         } catch (err) {
             console.error(err);
