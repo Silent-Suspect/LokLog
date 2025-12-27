@@ -161,6 +161,10 @@ const LokLogEditor = () => {
         if (!shift.start_time || !shift.end_time) return 0;
         const [h1, m1] = shift.start_time.split(':').map(Number);
         const [h2, m2] = shift.end_time.split(':').map(Number);
+
+        const start = h1 * 60 + m1;
+        const end = h2 * 60 + m2;
+
         let diff = end - start;
         if (diff < 0) diff += 24 * 60; // Over midnight
         return diff;
