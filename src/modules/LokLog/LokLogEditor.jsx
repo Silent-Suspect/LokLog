@@ -276,28 +276,24 @@ const LokLogEditor = () => {
                 ws.getCell(`L${r}`).value = seg.notes;
             });
 
-            // Footnotes & General Comments (Start at A30)
-            let currentRow = 30;
+            // 3. NOTES PROCESSING WITH STYLE CLONING
+            const REF_ROW_IDX = 30;
+            const refRow = ws.getRow(REF_ROW_IDX);
+            const refCell = ws.getCell(`A${REF_ROW_IDX}`);
 
-            // Helper: Robust Word-Based Split (Limit 125)
+            // Deep copy style and height
+            const baseStyle = JSON.parse(JSON.stringify(refCell.style));
+            const baseHeight = refRow.height;
+
+            // Helper: Word-Based Split
             const smartSplit = (text, limit = 125) => {
                 if (!text) return [];
                 const lines = [];
-                // Preserve manual paragraphs
                 const paragraphs = text.toString().split('\n');
-
                 paragraphs.forEach(para => {
-                    if (para.length <= limit) {
-                        lines.push(para);
-                        return;
-                    }
-                    // FIX: Filter out empty strings to prevent "ghost" words
                     const words = para.split(' ').filter(w => w.length > 0);
-
-                    if (words.length === 0) return; // Skip empty lines
-
+                    if (words.length === 0) return;
                     let currentLine = words[0];
-
                     for (let i = 1; i < words.length; i++) {
                         const word = words[i];
                         if ((currentLine + ' ' + word).length <= limit) {
@@ -312,54 +308,35 @@ const LokLogEditor = () => {
                 return lines;
             };
 
-            // Build Queue with Wrapping
             let notesQueue = [];
-            // Rely on default limit 125
             extraComments.forEach(note => notesQueue.push(...smartSplit(note)));
             if (shift.notes) notesQueue.push(...smartSplit(shift.notes));
 
-            // ---------------------------------------------------------
-            // CONDITIONAL LOGIC (Safe Zone vs Overflow)
-            // ---------------------------------------------------------
-            currentRow = 30;
+            // 4. Loop & Insert
+            let currentRow = 30;
             const SAFE_ROWS_END = 34;
 
             notesQueue.forEach(note => {
                 if (currentRow <= SAFE_ROWS_END) {
-                    // CASE A: EXISTING TEMPLATE ROW (30-34)
-                    // Trust the template. Just write text.
+                    // CASE A: SAFE ZONE (Rows 30-34) - Write to existing cells
                     const cell = ws.getCell(`A${currentRow}`);
                     cell.value = note;
-                    cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+                    cell.alignment = { ...cell.alignment, wrapText: true, vertical: 'top' };
                 } else {
-                    // CASE B: OVERFLOW (NEW ROW)
-                    // 1. Insert new row
-                    ws.insertRow(currentRow, []);
+                    // CASE B: OVERFLOW ZONE (Rows 35+) - Insert & Style
+                    ws.spliceRows(currentRow, 0, new Array(14).fill(null));
+
                     const newRow = ws.getRow(currentRow);
+                    newRow.height = baseHeight;
+                    newRow.commit();
 
-                    // 2. Merge A-N
-                    try {
-                        ws.mergeCells(currentRow, 1, currentRow, 14);
-                    } catch (e) { console.warn(e); }
+                    // Merge A-N
+                    ws.mergeCells(currentRow, 1, currentRow, 14);
 
-                    // 3. Write & Style
+                    // Apply Data & Style
                     const cell = ws.getCell(`A${currentRow}`);
                     cell.value = note;
-
-                    // Hardcode Style for NEW rows only
-                    cell.font = { name: 'Arial', size: 10 };
-                    cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
-                    cell.border = {
-                        left: { style: 'thin' },
-                        bottom: { style: 'thin' }
-                    };
-
-                    // 4. Fix Right Border on Column N (14)
-                    const lastCell = newRow.getCell(14);
-                    lastCell.border = {
-                        right: { style: 'medium' }, // Black outer frame
-                        bottom: { style: 'thin' }
-                    };
+                    cell.style = baseStyle;
                 }
                 currentRow++;
             });
