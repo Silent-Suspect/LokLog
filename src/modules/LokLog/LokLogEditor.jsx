@@ -278,18 +278,23 @@ const LokLogEditor = () => {
 
             // Footnotes & General Comments (Start at A30)
             let currentRow = 30;
+            const notesQueue = [...extraComments];
+            if (shift.notes) notesQueue.push(shift.notes);
 
-            // 1. Footnotes (extraComments)
-            extraComments.forEach(note => {
+            notesQueue.forEach(note => {
+                // Critical: Check for overflow at Row 35 (Start of Template Footer)
+                if (currentRow >= 35) {
+                    // Insert new row at current position, shifting existing content down
+                    // 'i' flag inherits style from the row above (ExcelJS specific behavior usually handled by insertRow defaults or manual styling)
+                    ws.insertRow(currentRow, []);
+                }
+
                 ws.getCell(`A${currentRow}`).value = note;
+                // Optional: Ensure text wrapping or styling if needed
+                ws.getCell(`A${currentRow}`).alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
+
                 currentRow++;
             });
-
-            // 2. General Comments (Sonstige Bemerkungen)
-            if (shift.notes) {
-                ws.getCell(`A${currentRow}`).value = shift.notes;
-                currentRow++; // Increment if needed for further logic
-            }
 
             // 3. Download
             const out = await workbook.xlsx.writeBuffer();
