@@ -337,6 +337,13 @@ const LokLogEditor = () => {
             const monthStr = String(dObj.getMonth() + 1).padStart(2, '0');
             const yearStr = String(dObj.getFullYear()).slice(-2);
             ws.getCell('H4').value = `${dayStr}/${monthStr}/${yearStr}`;
+
+            ws.getCell('A4').value = `${user?.lastName || ''}, ${user?.firstName || ''}`;
+
+            if (segments.length > 0) {
+                ws.getCell('A11').value = segments[0].from_code;
+            }
+
             ws.getCell('E11').value = shift.start_time;
             ws.getCell('E26').value = shift.end_time;
 
