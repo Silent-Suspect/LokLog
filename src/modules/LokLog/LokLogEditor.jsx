@@ -386,7 +386,7 @@ const LokLogEditor = () => {
             if (shift.flags['Ausfall nach DB']) ws.getCell('L7').value = 'X';
 
             // Status Text Inputs (Specific Cells)
-            if (shift.flags.param_streckenkunde) {
+            if (shift.flags['Streckenkunde / EW / BR']) {
                 ws.getCell('B8').value = shift.flags.param_streckenkunde;
             }
             if (shift.flags.param_dienst_verschoben) {
