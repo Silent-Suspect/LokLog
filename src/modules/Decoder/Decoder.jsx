@@ -3,7 +3,7 @@ import { Search, MapPin, AlertCircle } from 'lucide-react';
 
 const Decoder = () => {
     // Tab State: 'search' or 'route'
-    const [activeTab, setActiveTab] = useState('search');
+    const [activeTab, setActiveTab] = useState('route');
 
     const [inputValue, setInputValue] = useState('');
     const [debouncedInput, setDebouncedInput] = useState('');
@@ -163,22 +163,22 @@ const Decoder = () => {
                 {/* Tabs */}
                 <div className="flex p-1 bg-dark/90 backdrop-blur border border-gray-800 rounded-xl w-fit">
                     <button
-                        onClick={() => setActiveTab('search')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${activeTab === 'search'
-                                ? 'bg-purple-600 text-white shadow-lg'
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                            }`}
-                    >
-                        <Search size={16} /> Station Search
-                    </button>
-                    <button
                         onClick={() => setActiveTab('route')}
                         className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${activeTab === 'route'
-                                ? 'bg-purple-600 text-white shadow-lg'
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                            ? 'bg-purple-600 text-white shadow-lg'
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
                             }`}
                     >
                         <MapPin size={16} /> Route Decoder
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('search')}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${activeTab === 'search'
+                            ? 'bg-purple-600 text-white shadow-lg'
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                            }`}
+                    >
+                        <Search size={16} /> Station Search
                     </button>
                 </div>
 
