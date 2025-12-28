@@ -344,7 +344,7 @@ const LokLogEditor = () => {
             const hours = Math.floor(duration / 60);
             const mins = duration % 60;
             ws.getCell('N26').value = `${hours}:${mins.toString().padStart(2, '0')}`;
-            ws.getCell('N28').value = shift.pause;
+            ws.getCell('N28').value = `${shift.pause}min.`;
 
             // Counters
             ws.getCell('A13').value = Number(shift.km_start);
