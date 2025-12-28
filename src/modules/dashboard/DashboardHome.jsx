@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
-import { TrainFront, Binary, ShieldAlert } from 'lucide-react';
+import { TrainFront, Binary, ShieldAlert, Mail } from 'lucide-react';
 import { useAdmin } from '../../hooks/useAdmin';
 import LiveClock from '../../components/LiveClock';
 
@@ -29,6 +29,16 @@ const DashboardHome = () => {
             borderColor: 'group-hover:border-accent-purple/50',
             btnText: 'Öffnen',
             path: '/decoder',
+        },
+        {
+            title: 'Email Vorlagen',
+            description: 'Dienstbeginn & Meldungen',
+            icon: Mail,
+            color: 'text-green-400',
+            bgColor: 'bg-green-400/10',
+            borderColor: 'group-hover:border-green-400/50',
+            btnText: 'Erstellen',
+            path: '/email-templates',
         },
     ];
 

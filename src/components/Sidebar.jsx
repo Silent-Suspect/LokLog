@@ -1,4 +1,4 @@
-import { LayoutGrid, Binary, TrainFront, ShieldAlert, User } from 'lucide-react';
+import { LayoutGrid, Binary, TrainFront, ShieldAlert, User, Mail } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAdmin } from '../hooks/useAdmin';
 
@@ -9,6 +9,7 @@ const Sidebar = ({ isOpen }) => {
     { icon: LayoutGrid, label: 'Dashboard', path: '/' },
     { icon: TrainFront, label: 'LokLog', path: '/loklog' },
     { icon: Binary, label: 'Decoder', path: '/decoder' },
+    { icon: Mail, label: 'Email Vorlagen', path: '/email-templates' },
   ];
 
   const system = [

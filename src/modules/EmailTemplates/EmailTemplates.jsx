@@ -1,0 +1,231 @@
+import React, { useState, useEffect } from 'react';
+import { useUser } from '@clerk/clerk-react';
+import { Mail, Clock, MapPin, User, Save, Send, Settings, CheckCircle, X } from 'lucide-react';
+
+const EmailTemplates = () => {
+    const { user } = useUser();
+    const [activeTab, setActiveTab] = useState('templates'); // 'templates' | 'settings'
+
+    // User Profile State
+    const [profile, setProfile] = useState({
+        firstName: user?.firstName || '',
+        lastName: user?.lastName || '',
+        address: '',
+        landline: '',
+        mobile: '',
+        senderEmail: user?.primaryEmailAddress?.emailAddress || ''
+    });
+
+    // Load Profile (Hybrid: Cloud -> Local)
+    useEffect(() => {
+        const cloudData = user?.unsafeMetadata?.loklog_profile;
+        const localData = localStorage.getItem('loklog_email_config');
+
+        if (cloudData) {
+            setProfile(prev => ({ ...prev, ...cloudData }));
+        } else if (localData) {
+            setProfile(prev => ({ ...prev, ...JSON.parse(localData) }));
+        }
+    }, [user]);
+
+    // Save Profile
+    const handleSaveProfile = async () => {
+        // 1. Save Local
+        localStorage.setItem('loklog_email_config', JSON.stringify(profile));
+        // 2. Save Cloud
+        if (user) {
+            try {
+                await user.update({
+                    unsafeMetadata: { ...user.unsafeMetadata, loklog_profile: profile }
+                });
+                alert("Einstellungen gespeichert (Lokal & Cloud)!");
+            } catch (e) {
+                console.warn("Cloud sync failed", e);
+                alert("Gespeichert (Lokal) - Offline Modus");
+            }
+        }
+    };
+
+    // Template Modal Logic
+    const [selectedTemplate, setSelectedTemplate] = useState(null); // 'start', 'end', 'times'
+    const [templateData, setTemplateData] = useState({
+        time: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+        location: 'MKP',
+        endTime: '',
+        pause: '0'
+    });
+    const [includeHeader, setIncludeHeader] = useState(true);
+
+    const generateMailto = () => {
+        // Logic to build subject & body based on selectedTemplate + profile
+        // Use encodeURIComponent()
+        const greeting = getGreeting(); // Helper for Morgen/Tag/Abend
+
+        let subject = "";
+        let body = "";
+
+        // Build Header
+        if (includeHeader) {
+            body += `${profile.firstName} ${profile.lastName}\n`;
+            if (profile.address) body += `${profile.address}\n`;
+            if (profile.mobile) body += `${profile.mobile}\n`;
+            if (profile.landline) body += `${profile.landline}\n`;
+            body += `\n`;
+        }
+
+        body += `${greeting},\n\n`;
+
+        if (selectedTemplate === 'start') {
+            subject = "Dienstbeginn";
+            body += `hier mein heutiger Dienstbeginn:\n${templateData.time} Uhr in ${templateData.location}.`;
+        } else if (selectedTemplate === 'end') {
+            subject = "Dienstende";
+            body += `hier mein heutiges Dienstende:\n${templateData.time} Uhr in ${templateData.location}.`;
+        } else if (selectedTemplate === 'times') {
+            subject = "Dienstzeiten";
+            body += `hier meine heutigen Dienstzeiten:\nStart: ${templateData.time}\nEnde: ${templateData.endTime}\nPause: ${templateData.pause} min.`;
+        }
+
+        body += `\n\nMit freundlichen Grüßen\n${profile.firstName} ${profile.lastName}`;
+
+        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    };
+
+    const getGreeting = () => {
+        const h = new Date().getHours();
+        if (h < 11) return "Guten Morgen";
+        if (h < 18) return "Guten Tag";
+        return "Guten Abend";
+    };
+
+    return (
+        <div className="p-6 max-w-6xl mx-auto space-y-8 pb-24">
+            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                <Mail className="text-accent-blue" /> Email Vorlagen
+            </h1>
+
+            {/* TABS */}
+            <div className="flex gap-4 border-b border-gray-800 pb-1">
+                <button onClick={() => setActiveTab('templates')} className={`pb-3 px-4 flex items-center gap-2 ${activeTab === 'templates' ? 'border-b-2 border-accent-blue text-accent-blue font-bold' : 'text-gray-400'}`}>
+                    <Mail size={18} /> Vorlagen
+                </button>
+                <button onClick={() => setActiveTab('settings')} className={`pb-3 px-4 flex items-center gap-2 ${activeTab === 'settings' ? 'border-b-2 border-accent-blue text-accent-blue font-bold' : 'text-gray-400'}`}>
+                    <Settings size={18} /> Einstellungen
+                </button>
+            </div>
+
+            {activeTab === 'templates' ? (
+                <div className="grid md:grid-cols-3 gap-6">
+                    {/* Card 1: Dienstbeginn */}
+                    <div onClick={() => setSelectedTemplate('start')} className="bg-card p-6 rounded-2xl border border-gray-800 hover:border-green-500/50 cursor-pointer transition group">
+                        <div className="w-12 h-12 rounded-full bg-green-900/20 flex items-center justify-center text-green-400 mb-4 group-hover:scale-110 transition">
+                            <CheckCircle size={24} />
+                        </div>
+                        <h3 className="text-xl font-bold text-white">Dienstbeginn</h3>
+                        <p className="text-gray-400 text-sm mt-2">Meldung über Startzeit und Ort.</p>
+                    </div>
+
+                    {/* Card 2: Dienstende */}
+                    <div onClick={() => setSelectedTemplate('end')} className="bg-card p-6 rounded-2xl border border-gray-800 hover:border-red-500/50 cursor-pointer transition group">
+                        <div className="w-12 h-12 rounded-full bg-red-900/20 flex items-center justify-center text-red-400 mb-4 group-hover:scale-110 transition">
+                            <X size={24} />
+                        </div>
+                        <h3 className="text-xl font-bold text-white">Dienstende</h3>
+                        <p className="text-gray-400 text-sm mt-2">Meldung über Feierabend und Ort.</p>
+                    </div>
+
+                    {/* Card 3: Dienstzeiten */}
+                    <div onClick={() => setSelectedTemplate('times')} className="bg-card p-6 rounded-2xl border border-gray-800 hover:border-blue-500/50 cursor-pointer transition group">
+                        <div className="w-12 h-12 rounded-full bg-blue-900/20 flex items-center justify-center text-blue-400 mb-4 group-hover:scale-110 transition">
+                            <Clock size={24} />
+                        </div>
+                        <h3 className="text-xl font-bold text-white">Dienstzeiten</h3>
+                        <p className="text-gray-400 text-sm mt-2">Zusammenfassung von Start, Ende & Pause.</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="bg-card p-6 rounded-2xl border border-gray-800 space-y-4 max-w-2xl">
+                    <h2 className="text-xl font-bold text-white mb-4">Briefkopf & Kontaktdaten</h2>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs text-gray-500">Vorname</label>
+                            <input value={profile.firstName} onChange={e => setProfile({ ...profile, firstName: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                        </div>
+                        <div>
+                            <label className="text-xs text-gray-500">Nachname</label>
+                            <input value={profile.lastName} onChange={e => setProfile({ ...profile, lastName: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                        </div>
+                        <div className="col-span-2">
+                            <label className="text-xs text-gray-500">Adresse (Straße, PLZ, Ort)</label>
+                            <textarea rows={2} value={profile.address} onChange={e => setProfile({ ...profile, address: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                        </div>
+                        <div>
+                            <label className="text-xs text-gray-500">Mobil</label>
+                            <input value={profile.mobile} onChange={e => setProfile({ ...profile, mobile: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                        </div>
+                        <div>
+                            <label className="text-xs text-gray-500">Festnetz</label>
+                            <input value={profile.landline} onChange={e => setProfile({ ...profile, landline: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                        </div>
+                    </div>
+                    <button onClick={handleSaveProfile} className="mt-4 bg-accent-blue text-white px-6 py-2 rounded-lg hover:bg-blue-600 flex items-center gap-2">
+                        <Save size={18} /> Speichern
+                    </button>
+                </div>
+            )}
+
+            {/* MODAL FOR COMPOSER */}
+            {selectedTemplate && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                    <div className="bg-card p-6 rounded-2xl border border-gray-700 w-full max-w-md space-y-4 relative">
+                        <button onClick={() => setSelectedTemplate(null)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
+
+                        <h2 className="text-xl font-bold text-white">
+                            {selectedTemplate === 'start' && 'Dienstbeginn melden'}
+                            {selectedTemplate === 'end' && 'Dienstende melden'}
+                            {selectedTemplate === 'times' && 'Dienstzeiten melden'}
+                        </h2>
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-xs text-gray-500">Uhrzeit</label>
+                                <input type="time" value={templateData.time} onChange={e => setTemplateData({ ...templateData, time: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                            </div>
+
+                            {selectedTemplate === 'times' && (
+                                <>
+                                    <div>
+                                        <label className="text-xs text-gray-500">Ende Uhrzeit</label>
+                                        <input type="time" value={templateData.endTime} onChange={e => setTemplateData({ ...templateData, endTime: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-gray-500">Pause (Min)</label>
+                                        <input type="number" value={templateData.pause} onChange={e => setTemplateData({ ...templateData, pause: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                    </div>
+                                </>
+                            )}
+
+                            {selectedTemplate !== 'times' && (
+                                <div>
+                                    <label className="text-xs text-gray-500">Ort / Kürzel</label>
+                                    <input type="text" value={templateData.location} onChange={e => setTemplateData({ ...templateData, location: e.target.value.toUpperCase() })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                </div>
+                            )}
+
+                            <div className="flex items-center gap-2 pt-2">
+                                <input type="checkbox" checked={includeHeader} onChange={e => setIncludeHeader(e.target.checked)} className="rounded bg-dark border-gray-600" />
+                                <span className="text-sm text-gray-300">Briefkopf mitsenden?</span>
+                            </div>
+                        </div>
+
+                        <button onClick={generateMailto} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-500 flex items-center justify-center gap-2 mt-4">
+                            <Send size={18} /> Email App öffnen
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default EmailTemplates;
