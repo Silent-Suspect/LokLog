@@ -656,7 +656,7 @@ const LokLogEditor = () => {
                                 placeholder="Smart Route: e.g. 'AA AABG' generates AA -> AABG"
                                 className="flex-1 bg-dark border border-gray-700 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-accent-blue outline-none"
                                 value={routeInput}
-                                onChange={e => setRouteInput(e.target.value)}
+                                onChange={e => setRouteInput(e.target.value.toUpperCase())}
                                 onKeyDown={e => e.key === 'Enter' && handleRouteAdd()}
                             />
                             <button onClick={handleRouteAdd} className="bg-accent-blue text-white p-3 rounded-xl hover:bg-blue-600 transition">
