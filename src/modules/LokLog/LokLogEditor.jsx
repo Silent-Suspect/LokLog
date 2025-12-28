@@ -3,7 +3,6 @@ import { useAuth, useUser } from '@clerk/clerk-react';
 import { Save, FileDown, Plus, Trash2, TrainFront, Clock, Zap, CheckSquare, Calendar, ArrowRight, Wifi, WifiOff } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { saveAs } from 'file-saver';
 
 const LokLogEditor = () => {
     const { getToken } = useAuth();
