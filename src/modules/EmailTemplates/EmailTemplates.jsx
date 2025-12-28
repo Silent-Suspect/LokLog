@@ -110,9 +110,9 @@ const EmailTemplates = () => {
         text = text.replaceAll('[Nachname]', profile.lastName);
 
         // Data Replacements
-        text = text.replaceAll('[ZEIT]', templateData.time);
+        text = text.replaceAll('[ZEIT]', templateData.time.replace(':', '.'));
         text = text.replaceAll('[ORT]', templateData.location);
-        text = text.replaceAll('[ENDE]', templateData.endTime || '');
+        text = text.replaceAll('[ENDE]', (templateData.endTime || '').replace(':', '.'));
         text = text.replaceAll('[PAUSE]', templateData.pause || '0');
 
         return text;
