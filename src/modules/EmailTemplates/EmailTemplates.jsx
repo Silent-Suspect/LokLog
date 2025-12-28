@@ -1,19 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { Mail, Clock, MapPin, User, Save, Send, Settings, CheckCircle, X } from 'lucide-react';
+import { Mail, Clock, MapPin, User, Save, Send, Settings, CheckCircle, X, RotateCcw } from 'lucide-react';
 
 const EmailTemplates = () => {
     const { user } = useUser();
     const [activeTab, setActiveTab] = useState('templates'); // 'templates' | 'settings'
 
-    // User Profile State
+    // Defaults
+    const DEFAULT_TEMPLATES = {
+        start: `[Briefkopf]\n\n[Begrüßung],\n\nhier mein heutiger Dienstbeginn:\n[ZEIT] Uhr in [ORT].\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
+        end: `[Briefkopf]\n\n[Begrüßung],\n\nhier mein heutiges Dienstende:\n[ZEIT] Uhr in [ORT].\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
+        times: `[Briefkopf]\n\n[Begrüßung],\n\nhier meine heutigen Dienstzeiten:\nStart: [ZEIT]\nEnde: [ENDE]\nPause: [PAUSE] min.\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`
+    };
+
+    // User Profile & Templates State
     const [profile, setProfile] = useState({
         firstName: user?.firstName || '',
         lastName: user?.lastName || '',
         address: '',
         landline: '',
         mobile: '',
-        senderEmail: user?.primaryEmailAddress?.emailAddress || ''
+        senderEmail: user?.primaryEmailAddress?.emailAddress || '',
+        templates: DEFAULT_TEMPLATES
     });
 
     // Load Profile (Hybrid: Cloud -> Local)
@@ -22,9 +30,22 @@ const EmailTemplates = () => {
         const localData = localStorage.getItem('loklog_email_config');
 
         if (cloudData) {
-            setProfile(prev => ({ ...prev, ...cloudData }));
+            // Merge defaults in case templates are missing in cloud data
+            setProfile(prev => ({
+                ...prev,
+                ...cloudData,
+                templates: { ...DEFAULT_TEMPLATES, ...(cloudData.templates || {}) }
+            }));
         } else if (localData) {
-            setProfile(prev => ({ ...prev, ...JSON.parse(localData) }));
+            const parsed = JSON.parse(localData);
+            setProfile(prev => ({
+                ...prev,
+                ...parsed,
+                templates: { ...DEFAULT_TEMPLATES, ...(parsed.templates || {}) }
+            }));
+        } else {
+            // Initial load with defaults
+            setProfile(prev => ({ ...prev, templates: DEFAULT_TEMPLATES }));
         }
     }, [user]);
 
@@ -46,6 +67,12 @@ const EmailTemplates = () => {
         }
     };
 
+    const handleResetTemplates = () => {
+        if (window.confirm("Möchtest du wirklich alle Vorlagen auf den Standard zurücksetzen?")) {
+            setProfile(prev => ({ ...prev, templates: DEFAULT_TEMPLATES }));
+        }
+    };
+
     // Template Modal Logic
     const [selectedTemplate, setSelectedTemplate] = useState(null); // 'start', 'end', 'times'
     const [templateData, setTemplateData] = useState({
@@ -56,46 +83,53 @@ const EmailTemplates = () => {
     });
     const [includeHeader, setIncludeHeader] = useState(true);
 
-    const generateMailto = () => {
-        // Logic to build subject & body based on selectedTemplate + profile
-        // Use encodeURIComponent()
-        const greeting = getGreeting(); // Helper for Morgen/Tag/Abend
-
-        let subject = "";
-        let body = "";
-
-        // Build Header
-        if (includeHeader) {
-            body += `${profile.firstName} ${profile.lastName}\n`;
-            if (profile.address) body += `${profile.address}\n`;
-            if (profile.mobile) body += `${profile.mobile}\n`;
-            if (profile.landline) body += `${profile.landline}\n`;
-            body += `\n`;
-        }
-
-        body += `${greeting},\n\n`;
-
-        if (selectedTemplate === 'start') {
-            subject = "Dienstbeginn";
-            body += `hier mein heutiger Dienstbeginn:\n${templateData.time} Uhr in ${templateData.location}.`;
-        } else if (selectedTemplate === 'end') {
-            subject = "Dienstende";
-            body += `hier mein heutiges Dienstende:\n${templateData.time} Uhr in ${templateData.location}.`;
-        } else if (selectedTemplate === 'times') {
-            subject = "Dienstzeiten";
-            body += `hier meine heutigen Dienstzeiten:\nStart: ${templateData.time}\nEnde: ${templateData.endTime}\nPause: ${templateData.pause} min.`;
-        }
-
-        body += `\n\nMit freundlichen Grüßen\n${profile.firstName} ${profile.lastName}`;
-
-        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    };
-
     const getGreeting = () => {
         const h = new Date().getHours();
         if (h < 11) return "Guten Morgen";
         if (h < 18) return "Guten Tag";
         return "Guten Abend";
+    };
+
+    const parseTemplate = (rawText) => {
+        let text = rawText || '';
+        const greeting = getGreeting();
+
+        // Header Logic
+        let headerBlock = '';
+        if (includeHeader) {
+            headerBlock = `${profile.firstName} ${profile.lastName}`;
+            if (profile.address) headerBlock += `\n${profile.address}`;
+            if (profile.mobile) headerBlock += `\n${profile.mobile}`;
+            if (profile.landline) headerBlock += `\n${profile.landline}`;
+        }
+
+        // Replacements
+        text = text.replaceAll('[Briefkopf]', headerBlock);
+        text = text.replaceAll('[Begrüßung]', greeting);
+        text = text.replaceAll('[Vorname]', profile.firstName);
+        text = text.replaceAll('[Nachname]', profile.lastName);
+
+        // Data Replacements
+        text = text.replaceAll('[ZEIT]', templateData.time);
+        text = text.replaceAll('[ORT]', templateData.location);
+        text = text.replaceAll('[ENDE]', templateData.endTime || '');
+        text = text.replaceAll('[PAUSE]', templateData.pause || '0');
+
+        return text;
+    };
+
+    const generateMailto = () => {
+        // Logic to build subject & body based on selectedTemplate + profile
+        // Use encodeURIComponent()
+        let subject = "Nachricht";
+        if (selectedTemplate === 'start') subject = "Dienstbeginn";
+        else if (selectedTemplate === 'end') subject = "Dienstende";
+        else if (selectedTemplate === 'times') subject = "Dienstzeiten";
+
+        const rawTemplate = profile.templates[selectedTemplate] || DEFAULT_TEMPLATES[selectedTemplate];
+        const body = parseTemplate(rawTemplate);
+
+        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     };
 
     return (
@@ -144,32 +178,80 @@ const EmailTemplates = () => {
                     </div>
                 </div>
             ) : (
-                <div className="bg-card p-6 rounded-2xl border border-gray-800 space-y-4 max-w-2xl">
-                    <h2 className="text-xl font-bold text-white mb-4">Briefkopf & Kontaktdaten</h2>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs text-gray-500">Vorname</label>
-                            <input value={profile.firstName} onChange={e => setProfile({ ...profile, firstName: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* LEFT: Contact Data */}
+                    <div className="bg-card p-6 rounded-2xl border border-gray-800 space-y-4">
+                        <h2 className="text-xl font-bold text-white mb-4">Briefkopf & Kontaktdaten</h2>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs text-gray-500">Vorname</label>
+                                <input value={profile.firstName} onChange={e => setProfile({ ...profile, firstName: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-500">Nachname</label>
+                                <input value={profile.lastName} onChange={e => setProfile({ ...profile, lastName: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="text-xs text-gray-500">Adresse (Straße, PLZ, Ort)</label>
+                                <textarea rows={2} value={profile.address} onChange={e => setProfile({ ...profile, address: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-500">Mobil</label>
+                                <input value={profile.mobile} onChange={e => setProfile({ ...profile, mobile: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-500">Festnetz</label>
+                                <input value={profile.landline} onChange={e => setProfile({ ...profile, landline: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                            </div>
                         </div>
-                        <div>
-                            <label className="text-xs text-gray-500">Nachname</label>
-                            <input value={profile.lastName} onChange={e => setProfile({ ...profile, lastName: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                    </div>
+
+                    {/* RIGHT: Template Editors */}
+                    <div className="bg-card p-6 rounded-2xl border border-gray-800 space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-white">Vorlagen bearbeiten</h2>
+                            <button onClick={handleResetTemplates} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1">
+                                <RotateCcw size={12} /> Reset
+                            </button>
                         </div>
-                        <div className="col-span-2">
-                            <label className="text-xs text-gray-500">Adresse (Straße, PLZ, Ort)</label>
-                            <textarea rows={2} value={profile.address} onChange={e => setProfile({ ...profile, address: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+
+                        {/* Legend */}
+                        <div className="text-[10px] text-gray-500 bg-black/20 p-2 rounded border border-gray-800">
+                            <b>Platzhalter:</b> [Briefkopf], [Begrüßung], [Vorname], [Nachname], [ZEIT], [ORT], [ENDE], [PAUSE]
                         </div>
-                        <div>
-                            <label className="text-xs text-gray-500">Mobil</label>
-                            <input value={profile.mobile} onChange={e => setProfile({ ...profile, mobile: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-500">Festnetz</label>
-                            <input value={profile.landline} onChange={e => setProfile({ ...profile, landline: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs text-green-400 font-bold block mb-1">Dienstbeginn</label>
+                                <textarea
+                                    rows={4}
+                                    value={profile.templates?.start || ''}
+                                    onChange={e => setProfile({ ...profile, templates: { ...profile.templates, start: e.target.value } })}
+                                    className="w-full bg-dark border border-gray-700 rounded p-2 text-white text-xs font-mono"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs text-red-400 font-bold block mb-1">Dienstende</label>
+                                <textarea
+                                    rows={4}
+                                    value={profile.templates?.end || ''}
+                                    onChange={e => setProfile({ ...profile, templates: { ...profile.templates, end: e.target.value } })}
+                                    className="w-full bg-dark border border-gray-700 rounded p-2 text-white text-xs font-mono"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs text-blue-400 font-bold block mb-1">Dienstzeiten</label>
+                                <textarea
+                                    rows={4}
+                                    value={profile.templates?.times || ''}
+                                    onChange={e => setProfile({ ...profile, templates: { ...profile.templates, times: e.target.value } })}
+                                    className="w-full bg-dark border border-gray-700 rounded p-2 text-white text-xs font-mono"
+                                />
+                            </div>
                         </div>
                     </div>
                     <button onClick={handleSaveProfile} className="mt-4 bg-accent-blue text-white px-6 py-2 rounded-lg hover:bg-blue-600 flex items-center gap-2">
-                        <Save size={18} /> Speichern
+                        <Save size={18} /> Einstellungen Speichern
                     </button>
                 </div>
             )}
