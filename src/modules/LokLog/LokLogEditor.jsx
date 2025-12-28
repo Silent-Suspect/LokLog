@@ -389,7 +389,7 @@ const LokLogEditor = () => {
             if (shift.flags['Streckenkunde / EW / BR']) {
                 ws.getCell('B8').value = shift.flags.param_streckenkunde;
             }
-            if (shift.flags.param_dienst_verschoben) {
+            if (shift.flags['Dienst verschoben']) {
                 ws.getCell('F8').value = shift.flags.param_dienst_verschoben;
             }
 
