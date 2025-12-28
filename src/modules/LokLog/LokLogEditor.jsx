@@ -15,6 +15,15 @@ const LokLogEditor = () => {
     const [hasDraft, setHasDraft] = useState(false);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
 
+    // Toast State
+    const [toast, setToast] = useState({ message: '', type: '', visible: false });
+
+    // Toast Helper
+    const showToast = (message, type = 'info') => {
+        setToast({ message, type, visible: true });
+        setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
+    };
+
     // Online Status Listener
     useEffect(() => {
         const handleStatus = () => setIsOnline(navigator.onLine);
@@ -238,7 +247,7 @@ const LokLogEditor = () => {
             setHasDraft(true);
         } catch (e) {
             console.error("Local Save failed", e);
-            alert("Warning: Could not save locally.");
+            showToast("Warning: Could not save locally.", 'error');
             setSaving(false);
             return;
         }
@@ -246,7 +255,7 @@ const LokLogEditor = () => {
         // 2. Check Online Status
         if (!isOnline) {
             setSaving(false);
-            alert("📡 Offline Mode: Saved to device safely. Will sync when online.");
+            showToast("📡 Offline Mode: Saved to device safely.", 'success');
             return;
         }
 
@@ -284,13 +293,12 @@ const LokLogEditor = () => {
             // "Updated handleSave... if NO (offline): show toast... if YES (online): proceed"
             // The previous request #339 cleared it.
             // Let's clear it to be clean.
-            localStorage.removeItem(draftKey);
             setHasDraft(false);
 
-            alert('✅ Synced to Cloud!');
+            showToast('✅ Synced to Cloud!', 'success');
         } catch (err) {
             console.error(err);
-            alert('❌ Cloud Sync failed. Saved locally.');
+            showToast('❌ Cloud Sync failed. Saved locally.', 'error');
         } finally {
             setSaving(false);
         }
@@ -757,6 +765,22 @@ const LokLogEditor = () => {
 
             {/* Sticky Footer Actions */}
             <div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex justify-end items-center gap-4">
+
+                {/* TOAST NOTIFICATION */}
+                {toast.visible && (
+                    <div className={`fixed bottom-24 right-4 z-50 px-6 py-3 rounded-xl border shadow-2xl animate-in slide-in-from-bottom-5 fade-in duration-300 font-bold flex items-center gap-3
+                        ${toast.type === 'error' ? 'bg-red-900/90 border-red-500 text-white' : 'bg-gray-900/90 border-green-500 text-white'}
+                    `}>
+                        {toast.type === 'error' ? (
+                            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        ) : (
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                        )}
+                        {toast.message}
+                    </div>
+                )}
+
+
                 {hasDraft && (
                     <span className="text-xs text-green-500 font-mono flex items-center gap-1 animate-pulse mr-auto md:mr-0">
                         <CheckSquare size={14} /> Draft saved locally
