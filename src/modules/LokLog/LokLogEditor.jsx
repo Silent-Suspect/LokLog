@@ -332,7 +332,11 @@ const LokLogEditor = () => {
             const ws = workbook.getWorksheet(1);
 
             // Header
-            ws.getCell('H4').value = new Date(date).toLocaleDateString('de-DE');
+            const dObj = new Date(date);
+            const dayStr = String(dObj.getDate()).padStart(2, '0');
+            const monthStr = String(dObj.getMonth() + 1).padStart(2, '0');
+            const yearStr = String(dObj.getFullYear()).slice(-2);
+            ws.getCell('H4').value = `${dayStr}/${monthStr}/${yearStr}`;
             ws.getCell('E11').value = shift.start_time;
             ws.getCell('E26').value = shift.end_time;
 
@@ -384,8 +388,8 @@ const LokLogEditor = () => {
                 ws.getCell(`A${r}`).value = seg.train_nr;
                 ws.getCell(`C${r}`).value = seg.tfz;
                 ws.getCell(`D${r}`).value = seg.departure;
-                ws.getCell(`E${r}`).value = seg.arrival;
-                ws.getCell(`H${r}`).value = seg.from_code;
+                ws.getCell(`H${r}`).value = seg.arrival;
+                ws.getCell(`E${r}`).value = seg.from_code;
                 ws.getCell(`I${r}`).value = seg.to_code;
                 ws.getCell(`L${r}`).value = seg.notes;
             });
