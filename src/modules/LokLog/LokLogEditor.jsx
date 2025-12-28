@@ -342,6 +342,7 @@ const LokLogEditor = () => {
 
             if (segments.length > 0) {
                 ws.getCell('A11').value = segments[0].from_code;
+                ws.getCell('A26').value = segments[segments.length - 1].to_code;
             }
 
             ws.getCell('E11').value = shift.start_time;
@@ -350,16 +351,23 @@ const LokLogEditor = () => {
             // Duration
             const hours = Math.floor(duration / 60);
             const mins = duration % 60;
-            ws.getCell('N26').value = `${hours}:${mins.toString().padStart(2, '0')}`;
+            ws.getCell('N26').value = `${hours},${mins.toString().padStart(2, '0')}`;
             ws.getCell('N28').value = `${shift.pause}min.`;
 
             // Counters
-            ws.getCell('A13').value = Number(shift.km_start);
-            ws.getCell('A28').value = Number(shift.km_end);
-            ws.getCell('E13').value = Number(shift.energy1_start);
-            ws.getCell('E28').value = Number(shift.energy1_end);
-            ws.getCell('I13').value = Number(shift.energy2_start);
-            ws.getCell('I28').value = Number(shift.energy2_end);
+            // Counters (Only write if not empty string, to distinguish 0 from empty)
+            const setNum = (cell, val) => {
+                if (val !== '' && val !== null && val !== undefined) {
+                    ws.getCell(cell).value = Number(val);
+                }
+            };
+
+            setNum('A13', shift.km_start);
+            setNum('A28', shift.km_end);
+            setNum('E13', shift.energy1_start);
+            setNum('E28', shift.energy1_end);
+            setNum('I13', shift.energy2_start);
+            setNum('I28', shift.energy2_end);
 
             // Status Logic (Checkboxes)
             // "Normaldienst" -> F7
