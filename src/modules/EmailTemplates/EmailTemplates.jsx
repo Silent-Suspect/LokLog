@@ -17,7 +17,9 @@ const EmailTemplates = () => {
     const [profile, setProfile] = useState({
         firstName: user?.firstName || '',
         lastName: user?.lastName || '',
-        address: '',
+        street: '',
+        zip: '',
+        city: '',
         landline: '',
         mobile: '',
         senderEmail: user?.primaryEmailAddress?.emailAddress || '',
@@ -34,6 +36,9 @@ const EmailTemplates = () => {
             setProfile(prev => ({
                 ...prev,
                 ...cloudData,
+                street: cloudData.street || '',
+                zip: cloudData.zip || '',
+                city: cloudData.city || '',
                 templates: { ...DEFAULT_TEMPLATES, ...(cloudData.templates || {}) }
             }));
         } else if (localData) {
@@ -41,6 +46,9 @@ const EmailTemplates = () => {
             setProfile(prev => ({
                 ...prev,
                 ...parsed,
+                street: parsed.street || '',
+                zip: parsed.zip || '',
+                city: parsed.city || '',
                 templates: { ...DEFAULT_TEMPLATES, ...(parsed.templates || {}) }
             }));
         } else {
@@ -98,9 +106,11 @@ const EmailTemplates = () => {
         let headerBlock = '';
         if (includeHeader) {
             headerBlock = `${profile.firstName} ${profile.lastName}`;
-            if (profile.address) headerBlock += `\n${profile.address}`;
-            if (profile.mobile) headerBlock += `\n${profile.mobile}`;
+            if (profile.street) headerBlock += `\n${profile.street}`;
+            if (profile.zip || profile.city) headerBlock += `\n${profile.zip} ${profile.city}`;
             if (profile.landline) headerBlock += `\n${profile.landline}`;
+            if (profile.mobile) headerBlock += `\n${profile.mobile}`;
+            if (profile.senderEmail) headerBlock += `\n${profile.senderEmail}`;
         }
 
         // Replacements
@@ -191,17 +201,33 @@ const EmailTemplates = () => {
                                 <label className="text-xs text-gray-500">Nachname</label>
                                 <input value={profile.lastName} onChange={e => setProfile({ ...profile, lastName: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
                             </div>
+
                             <div className="col-span-2">
-                                <label className="text-xs text-gray-500">Adresse (Straße, PLZ, Ort)</label>
-                                <textarea rows={2} value={profile.address} onChange={e => setProfile({ ...profile, address: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                <label className="text-xs text-gray-500">Straße & Hausnummer</label>
+                                <input value={profile.street} onChange={e => setProfile({ ...profile, street: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                            </div>
+
+                            <div className="col-span-1">
+                                <label className="text-xs text-gray-500">PLZ</label>
+                                <input value={profile.zip} onChange={e => setProfile({ ...profile, zip: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                            </div>
+                            <div className="col-span-1">
+                                <label className="text-xs text-gray-500">Ort</label>
+                                <input value={profile.city} onChange={e => setProfile({ ...profile, city: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                            </div>
+
+                            <div>
+                                <label className="text-xs text-gray-500">Festnetz</label>
+                                <input value={profile.landline} onChange={e => setProfile({ ...profile, landline: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
                             </div>
                             <div>
                                 <label className="text-xs text-gray-500">Mobil</label>
                                 <input value={profile.mobile} onChange={e => setProfile({ ...profile, mobile: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
                             </div>
-                            <div>
-                                <label className="text-xs text-gray-500">Festnetz</label>
-                                <input value={profile.landline} onChange={e => setProfile({ ...profile, landline: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+
+                            <div className="col-span-2">
+                                <label className="text-xs text-gray-500">Email (Absender)</label>
+                                <input value={profile.senderEmail} onChange={e => setProfile({ ...profile, senderEmail: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
                             </div>
                         </div>
                     </div>
