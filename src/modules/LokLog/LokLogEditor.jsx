@@ -3,7 +3,7 @@ import { useAuth, useUser } from '@clerk/clerk-react';
 import { Save, FileDown, Plus, Trash2, TrainFront, Clock, Zap, CheckSquare, Calendar, ArrowRight, Wifi, WifiOff } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import ShiftEmailButton from './ShiftEmailButton';
+import { saveAs } from 'file-saver';
 
 const LokLogEditor = () => {
     const { getToken } = useAuth();
@@ -518,7 +518,6 @@ const LokLogEditor = () => {
                             <TrainFront className="text-accent-blue" />
                             Fahrtenbuch
                         </h1>
-                        <ShiftEmailButton />
                         {isOnline ? (
                             <span className="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider bg-green-900/30 text-green-400 px-2 py-1 rounded-full border border-green-900/50">
                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
