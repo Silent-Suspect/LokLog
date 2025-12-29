@@ -324,41 +324,67 @@ const LokLogEditor = () => {
         return { processedSegments, extraComments };
     };
 
-    // Helper: Append Worksheet (Lego Strategy)
+    // Helper: Robust Worksheet Appender (Limited to Col A-O)
     const appendWorksheet = (sourceSheet, targetSheet, offsetRow) => {
-        sourceSheet.eachRow((srcRow, rowNumber) => {
+        // 1. Copy Rows & Styles
+        sourceSheet.eachRow({ includeEmpty: true }, (srcRow, rowNumber) => {
             const targetRowIdx = offsetRow + (rowNumber - 1);
             const targetRow = targetSheet.getRow(targetRowIdx);
 
-            targetRow.height = srcRow.height;
+            // Copy Row Height
+            if (srcRow.height) {
+                targetRow.height = srcRow.height;
+            }
 
-            srcRow.eachCell({ includeEmpty: true }, (srcCell, colNumber) => {
-                const targetCell = targetRow.getCell(colNumber);
+            // CRITICAL: Strict Limit to Column O (Index 15)
+            // A=1 ... N=14, O=15
+            const MAX_COL = 15;
+
+            for (let col = 1; col <= MAX_COL; col++) {
+                const srcCell = srcRow.getCell(col);
+                const targetCell = targetRow.getCell(col);
+
+                // Copy Value
                 targetCell.value = srcCell.value;
-                // Deep copy style
-                targetCell.style = JSON.parse(JSON.stringify(srcCell.style));
+
+                // Deep Copy Style
+                if (srcCell.style) {
+                    targetCell.style = JSON.parse(JSON.stringify(srcCell.style));
+                }
 
                 // Copy borders explicitly if needed suitable for ExcelJS
                 if (srcCell.border) targetCell.border = JSON.parse(JSON.stringify(srcCell.border));
-            });
+            }
             targetRow.commit();
         });
 
-        // Handle Merges
-        if (sourceSheet.model.merges) {
-            sourceSheet.model.merges.forEach(rangeStr => {
-                // Regex to parse "A33:G33" or "A1:B2"
-                const match = rangeStr.match(/([A-Z]+)([0-9]+):([A-Z]+)([0-9]+)/);
-                if (match) {
-                    const [_, startCol, startRow, endCol, endRow] = match;
-                    const newStartRow = parseInt(startRow) + offsetRow - 1; // -1 because B starts at 1
-                    const newEndRow = parseInt(endRow) + offsetRow - 1;
+        // 2. Transfer Merges
+        if (sourceSheet.model && sourceSheet.model.merges) {
+            sourceSheet.model.merges.forEach(range => {
+                try {
+                    const matches = range.match(/([A-Z]+)([0-9]+):([A-Z]+)([0-9]+)/);
+                    if (matches) {
+                        const [_, startCol, startRowStr, endCol, endRowStr] = matches;
 
-                    try {
-                        targetSheet.mergeCells(`${startCol}${newStartRow}:${endCol}${newEndRow}`);
-                    } catch (e) {
-                        console.warn("Merge error during stitching:", e);
+                        const startRow = parseInt(startRowStr, 10);
+                        const endRow = parseInt(endRowStr, 10);
+
+                        const newStartRow = offsetRow + (startRow - 1);
+                        const newEndRow = offsetRow + (endRow - 1);
+
+                        const newRange = `${startCol}${newStartRow}:${endCol}${newEndRow}`;
+
+                        targetSheet.mergeCells(newRange);
+
+                        // Fix style for master cell of merge
+                        const srcMaster = sourceSheet.getCell(`${startCol}${startRow}`);
+                        const tgtMaster = targetSheet.getCell(`${startCol}${newStartRow}`);
+                        if (srcMaster.style) {
+                            tgtMaster.style = JSON.parse(JSON.stringify(srcMaster.style));
+                        }
                     }
+                } catch (e) {
+                    console.warn("Skipping merge:", range);
                 }
             });
         }
