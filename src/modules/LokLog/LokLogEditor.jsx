@@ -354,6 +354,15 @@ const LokLogEditor = () => {
 
                 // Copy borders explicitly if needed suitable for ExcelJS
                 if (srcCell.border) targetCell.border = JSON.parse(JSON.stringify(srcCell.border));
+
+                // CRITICAL: Force Right Border (via Left Border on Col O)
+                if (col === 15) {
+                    const existingBorder = targetCell.border || {};
+                    targetCell.border = {
+                        ...existingBorder,
+                        left: { style: 'medium' }
+                    };
+                }
             }
             targetRow.commit();
         });
@@ -530,6 +539,16 @@ const LokLogEditor = () => {
 
             const appendStartRow = lastCommentRow + 1;
             appendWorksheet(wsB, ws, appendStartRow);
+
+            // CLEANUP: Delete excess rows after the footer
+            // Calculate where the document *should* end
+            const finalContentRow = appendStartRow + (wsB.rowCount || 15);
+            // Delete the next 200 rows to ensure no "ghost" rows from Template A remain
+            try {
+                ws.spliceRows(finalContentRow + 2, 200);
+            } catch (e) {
+                // Ignore
+            }
 
             // 7. Update Formulas
             // Relies on B structure: Gastfahrten(1), Data(2-7), Sum(8)
