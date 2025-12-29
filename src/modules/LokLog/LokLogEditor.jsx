@@ -449,60 +449,76 @@ const LokLogEditor = () => {
                 return lines;
             };
 
-            // 1. COLLECT ALL LINES
+            // 1. COLLECT CONTENT
             let allLines = [];
             extraComments.forEach(note => allLines.push(...smartSplit(note)));
             if (shift.notes) allLines.push(...smartSplit(shift.notes));
 
-            // 2. CALCULATE NEEDED SPACE
-            const STANDARD_CAPACITY = 3; // Rows 30, 31, 32
+            // 2. CALCULATE SPACE
+            // Standard space is rows 30, 31, 32.
+            const STANDARD_CAPACITY = 3;
             const rowsToAdd = Math.max(0, allLines.length - STANDARD_CAPACITY);
 
-            // 3. BATCH INSERTION (If needed)
+            // 3. INSERT & SANITIZE (If needed)
             if (rowsToAdd > 0) {
-                const INSERT_AT = 32; // Insert after row 31, pushing original 32 down
+                const INSERT_AT = 33; // Push "Gastfahrten" (Row 33) down
 
-                // Insert empty rows
+                // Insert blank rows
                 ws.spliceRows(INSERT_AT, 0, new Array(rowsToAdd).fill(null));
 
-                // Format new rows
+                // Loop through NEW rows to Clean & Format
                 for (let i = 0; i < rowsToAdd; i++) {
                     const r = INSERT_AT + i;
                     const newRow = ws.getRow(r);
                     newRow.height = baseHeight;
+
+                    // CRITICAL: SANITIZE CELLS
+                    // spliceRows often copies styles from the row that was pushed down.
+                    // We must wipe them clean.
+                    for (let c = 1; c <= 15; c++) {
+                        ws.getCell(r, c).style = {};
+                        ws.getCell(r, c).border = {};
+                    }
                     newRow.commit();
 
-                    // Merge A-N
+                    // Safety Unmerge (in case it inherited a merge)
                     try { ws.unMergeCells(r, 1, r, 14); } catch (e) { }
+
+                    // Now Merge A-N
                     ws.mergeCells(r, 1, r, 14);
 
-                    // Style
+                    // Apply Base Style
                     const cell = ws.getCell(`A${r}`);
                     cell.style = baseStyle;
 
-                    // Border Neighbor
-                    ws.getCell(r, 15).border = { left: { style: 'medium' } };
+                    // Re-apply Right Border/Neighbor (Column O / 15) if needed
+                    // (Assuming Column O needs a left border to close the box)
+                    const neighbor = ws.getCell(r, 15);
+                    neighbor.style = {}; // Clear ghost styles first
+                    neighbor.border = { left: { style: 'medium' } };
                 }
             }
 
             // 4. WRITE CONTENT
+            // We write sequentially starting at 30.
+            // Rows 30, 31, 32 are existing. Rows 33+ are the new ones.
             allLines.forEach((line, index) => {
                 const currentRow = 30 + index;
                 const cell = ws.getCell(`A${currentRow}`);
                 cell.value = line;
-                // Ensure alignment is set (especially for original rows 30-32)
-                cell.alignment = { ...cell.alignment, wrapText: true, vertical: 'top' };
+                // Enforce alignment again just in case
+                cell.alignment = { ...baseStyle.alignment, wrapText: true, vertical: 'top' };
             });
 
-            // 5. UPDATE DYNAMIC FORMULA
+            // 5. UPDATE FORMULA (Footer Shift)
             // Original Sum: H40, Range: H34:H39
-            // With rowsToAdd, everything shifts down.
             if (rowsToAdd >= 0) {
                 const newSumRow = 40 + rowsToAdd;
                 const startRange = 34 + rowsToAdd;
                 const endRange = 39 + rowsToAdd;
 
                 const sumCell = ws.getCell(`H${newSumRow}`);
+                // Ensure the cell exists and has correct styling (copy from a neighbor if strictly needed)
                 sumCell.value = { formula: `SUM(H${startRange}:H${endRange})` };
             }
 
