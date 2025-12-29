@@ -448,6 +448,18 @@ const LokLogEditor = () => {
             if (json.error) throw new Error("API Error: " + json.error);
             if (!json.templateA || !json.templateB) throw new Error("Invalid API response: Missing templates");
 
+            // Duration Helper (HH:MM -> Minutes)
+            const getDuration = (start, end) => {
+                if (!start || !end) return { mins: 0, str: '0:00' };
+                const [h1, m1] = start.split(':').map(Number);
+                const [h2, m2] = end.split(':').map(Number);
+                let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+                if (diff < 0) diff += 1440; // Handle midnight crossing
+                const h = Math.floor(diff / 60);
+                const m = diff % 60;
+                return { mins: diff, str: `${h}:${m.toString().padStart(2, '0')}` };
+            };
+
             // Helper: Decode Base64 to ArrayBuffer
             const base64ToArrayBuffer = (base64) => {
                 const binaryString = window.atob(base64);
@@ -607,6 +619,44 @@ const LokLogEditor = () => {
             const appendStartRow = lastCommentRow + 1;
             appendWorksheet(wsB, ws, appendStartRow);
 
+            // 7. FILL FOOTER DATA (Fixed 6 Rows)
+            // Template B structure:
+            // Row 1 (footerStartRow): Headers
+            // Row 2-7: Data Slots (The loops below target these)
+            // Row 8: Sum Row
+
+            const MAX_SLOTS = 6;
+            let totalWaitMinutes = 0;
+
+            for (let i = 0; i < MAX_SLOTS; i++) {
+                // Determine target row index (Header is at appendStartRow, so data starts at +1)
+                const currentRow = appendStartRow + 1 + i;
+
+                // A) GASTFAHRTEN (Write to Column A)
+                // Format: "FROM - TO (DEP - ARR) = DUR h"
+                if (guestRides && guestRides[i]) {
+                    const r = guestRides[i];
+                    if (r.from && r.to && r.dep && r.arr) {
+                        const dur = getDuration(r.dep, r.arr);
+                        const text = `${r.from} - ${r.to} (${r.dep} - ${r.arr}) = ${dur.str} h`;
+                        ws.getCell(`A${currentRow}`).value = text;
+                    }
+                }
+
+                // B) WARTEZEITEN (Write to Column H)
+                // Format: "START - END LOC (REASON)"
+                if (waitingTimes && waitingTimes[i]) {
+                    const w = waitingTimes[i];
+                    if (w.start && w.end) {
+                        const dur = getDuration(w.start, w.end);
+                        totalWaitMinutes += dur.mins;
+
+                        const text = `${w.start} - ${w.end} ${w.loc || ''} (${w.reason || ''})`;
+                        ws.getCell(`H${currentRow}`).value = text;
+                    }
+                }
+            }
+
             // CLEANUP: Delete excess rows after the footer
             // Calculate where the document *should* end
             const finalContentRow = appendStartRow + (wsB.rowCount || 15);
@@ -623,14 +673,17 @@ const LokLogEditor = () => {
                 ws.spliceColumns(16, 20);
             } catch (e) { /* Ignore range errors */ }
 
-            // 7. Update Formulas
-            // Relies on B structure: Gastfahrten(1), Data(2-7), Sum(8)
-            const sumRow = appendStartRow + 7;
-            const startRange = appendStartRow + 1;
-            const endRange = appendStartRow + 6;
+            // 8. WRITE TOTAL WAITING TIME (Overwrite Sum Formula)
+            // The Sum cell is usually at the bottom of the block (Row 8 of Template B)
+            // Since we wrote text into Column H, Excel's =SUM() won't work. We write the result manually.
+            const sumRowIdx = appendStartRow + 7;
+            const totalH = Math.floor(totalWaitMinutes / 60);
+            const totalM = totalWaitMinutes % 60;
+            const totalStr = `${totalH},${totalM.toString().padStart(2, '0')}`; // Decimal format "1,30" or Time format "1:30"
 
-            const sumCell = ws.getCell(`H${sumRow}`);
-            sumCell.value = { formula: `SUM(H${startRange}:H${endRange})` };
+            const sumCell = ws.getCell(`H${sumRowIdx}`);
+            sumCell.value = totalStr;
+            sumCell.alignment = { horizontal: 'right' }; // Align right to look like a number
 
 
             // 8. Download
