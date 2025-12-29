@@ -473,7 +473,7 @@ const LokLogEditor = () => {
 
             // 3. INSERT & SANITIZE (If needed)
             if (rowsToAdd > 0) {
-                const INSERT_AT = 33; // Push "Gastfahrten" (Row 33) down
+                const INSERT_AT = 31; // Insert at 31 (Middle of block) to safely push footer down
 
                 // Insert blank rows
                 ws.spliceRows(INSERT_AT, 0, new Array(rowsToAdd).fill(null));
@@ -491,12 +491,7 @@ const LokLogEditor = () => {
                         ws.getCell(r, c).value = null;
                     }
 
-                    // B. PRECISE UNMERGE STRATEGY
-                    // The original row 33 likely had merges A-G and H-N.
-                    // We must unmerge these specific ranges if they were copied to the new row.
-                    try { ws.unMergeCells(`A${r}:G${r}`); } catch (e) { }
-                    try { ws.unMergeCells(`H${r}:N${r}`); } catch (e) { }
-                    // Just in case, try the full row unmerge too
+                    // B. Simple Unmerge (Safety)
                     try { ws.unMergeCells(`A${r}:N${r}`); } catch (e) { }
 
                     newRow.commit(); // Save clean state
