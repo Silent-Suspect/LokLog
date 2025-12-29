@@ -45,6 +45,8 @@ const LokLogEditor = () => {
         notes: ''
     });
     const [segments, setSegments] = useState([]);
+    const [guestRides, setGuestRides] = useState([]); // { from, to, dep, arr }
+    const [waitingTimes, setWaitingTimes] = useState([]); // { start, end, loc, reason }
 
     // Smart Input
     const [routeInput, setRouteInput] = useState('');
@@ -63,6 +65,8 @@ const LokLogEditor = () => {
                     date,
                     shift,
                     segments,
+                    guestRides,
+                    waitingTimes,
                     timestamp: new Date().getTime()
                 };
                 localStorage.setItem(`loklog_draft_${date}`, JSON.stringify(draftData));
@@ -71,7 +75,7 @@ const LokLogEditor = () => {
         }, 500);
 
         return () => clearTimeout(timeoutId);
-    }, [shift, segments, date]);
+    }, [shift, segments, guestRides, waitingTimes, date]);
 
     const loadShift = async (selectedDate) => {
         setLoading(true);
@@ -117,6 +121,8 @@ const LokLogEditor = () => {
                         from_code: s.from_station,
                         to_code: s.to_station
                     })) || []);
+                    setGuestRides(data.shift.guest_rides || []);
+                    setWaitingTimes(data.shift.waiting_times || []);
                     // We found server data, so technically no "unsaved draft" needed unless we want to keep it?
                     // Usually server is authority.
                     setHasDraft(false);
@@ -145,6 +151,8 @@ const LokLogEditor = () => {
             if (parsed.date === expectedDate) {
                 setShift(parsed.shift);
                 setSegments(parsed.segments);
+                setGuestRides(parsed.guestRides || []);
+                setWaitingTimes(parsed.waitingTimes || []);
                 setHasDraft(true);
                 return true;
             }
@@ -163,6 +171,8 @@ const LokLogEditor = () => {
             notes: ''
         });
         setSegments([]);
+        setGuestRides([]);
+        setWaitingTimes([]);
     };
 
     // Calculations
@@ -180,6 +190,33 @@ const LokLogEditor = () => {
     };
 
     const duration = calculateDuration();
+
+    // Duration Helper String (HH:MM)
+    const calculateDurationString = (start, end) => {
+        if (!start || !end) return "0:00";
+        const [h1, m1] = start.split(':').map(Number);
+        const [h2, m2] = end.split(':').map(Number);
+        const diffMinutes = (h2 * 60 + m2) - (h1 * 60 + m1);
+        const absDiff = diffMinutes < 0 ? diffMinutes + 24 * 60 : diffMinutes;
+        const h = Math.floor(absDiff / 60);
+        const m = absDiff % 60;
+        return `${h}:${m.toString().padStart(2, '0')}`;
+    };
+
+    // Update Helpers
+    const updateGuestRide = (index, field, value) => {
+        setGuestRides(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+    };
+    const removeGuestRide = (index) => {
+        setGuestRides(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const updateWaitingTime = (index, field, value) => {
+        setWaitingTimes(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+    };
+    const removeWaitingTime = (index) => {
+        setWaitingTimes(prev => prev.filter((_, i) => i !== index));
+    };
 
     // Auto-Pause Suggestion
     useEffect(() => {
@@ -241,6 +278,8 @@ const LokLogEditor = () => {
                 date,
                 shift,
                 segments,
+                guestRides,
+                waitingTimes,
                 timestamp: new Date().getTime()
             };
             localStorage.setItem(draftKey, JSON.stringify(draftData));
@@ -275,7 +314,9 @@ const LokLogEditor = () => {
                         energy_18_start: shift.energy1_start,
                         energy_18_end: shift.energy1_end,
                         energy_28_start: shift.energy2_start,
-                        energy_28_end: shift.energy2_end
+                        energy_28_end: shift.energy2_end,
+                        guest_rides: guestRides,
+                        waiting_times: waitingTimes
                     },
                     segments
                 })
@@ -844,6 +885,73 @@ const LokLogEditor = () => {
                                     Noch keine Fahrten eingetragen. Nutze die Smart Route oben für automatische Split-Ups!
                                 </div>
                             )}
+                        </div>
+
+                        {/* MODULE: GASTFAHRTEN */}
+                        <div className="bg-card p-5 rounded-2xl border border-gray-800 space-y-4 mt-6">
+                            <div className="flex justify-between items-center">
+                                <h3 className="font-bold text-white flex items-center gap-2"><TrainFront size={16} /> Gastfahrten</h3>
+                                <button onClick={() => setGuestRides([...guestRides, { from: '', to: '', dep: '', arr: '' }])} className="text-xs bg-gray-800 hover:bg-gray-700 text-white px-3 py-1 rounded flex items-center gap-1">
+                                    <Plus size={12} /> Hinzufügen
+                                </button>
+                            </div>
+
+                            <div className="space-y-3">
+                                {guestRides.map((ride, i) => {
+                                    const rideDuration = calculateDurationString(ride.dep, ride.arr);
+                                    return (
+                                        <div key={i} className="bg-dark/50 p-3 rounded-xl border border-gray-700/50 space-y-2">
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                <input placeholder="VON" value={ride.from} onChange={e => updateGuestRide(i, 'from', e.target.value.toUpperCase())} className="bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
+                                                <input placeholder="NACH" value={ride.to} onChange={e => updateGuestRide(i, 'to', e.target.value.toUpperCase())} className="bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
+                                                <input type="time" value={ride.dep} onChange={e => updateGuestRide(i, 'dep', e.target.value)} className="bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
+                                                <input type="time" value={ride.arr} onChange={e => updateGuestRide(i, 'arr', e.target.value)} className="bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs text-gray-500 font-mono">
+                                                    {ride.from && ride.to ? `${ride.from} - ${ride.to} (${ride.dep} - ${ride.arr}) = ${rideDuration} h` : '...'}
+                                                </span>
+                                                <button onClick={() => removeGuestRide(i)} className="text-red-400 hover:text-red-300"><Trash2 size={14} /></button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {guestRides.length === 0 && <p className="text-xs text-gray-600 italic">Keine Gastfahrten eingetragen.</p>}
+                            </div>
+                        </div>
+
+                        {/* MODULE: WARTEZEITEN */}
+                        <div className="bg-card p-5 rounded-2xl border border-gray-800 space-y-4 mt-6">
+                            <div className="flex justify-between items-center">
+                                <h3 className="font-bold text-white flex items-center gap-2"><Clock size={16} /> Warte- / Standzeiten</h3>
+                                <button onClick={() => setWaitingTimes([...waitingTimes, { start: '', end: '', loc: '', reason: '' }])} className="text-xs bg-gray-800 hover:bg-gray-700 text-white px-3 py-1 rounded flex items-center gap-1">
+                                    <Plus size={12} /> Hinzufügen
+                                </button>
+                            </div>
+
+                            <div className="space-y-3">
+                                {waitingTimes.map((wait, i) => (
+                                    <div key={i} className="bg-dark/50 p-3 rounded-xl border border-gray-700/50 space-y-2">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            <div className="flex gap-2">
+                                                <input type="time" value={wait.start} onChange={e => updateWaitingTime(i, 'start', e.target.value)} className="w-1/2 bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
+                                                <input type="time" value={wait.end} onChange={e => updateWaitingTime(i, 'end', e.target.value)} className="w-1/2 bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <input placeholder="Ort / Signal" value={wait.loc} onChange={e => updateWaitingTime(i, 'loc', e.target.value)} className="w-1/2 bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
+                                                <input placeholder="Grund" value={wait.reason} onChange={e => updateWaitingTime(i, 'reason', e.target.value)} className="w-1/2 bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-gray-500 font-mono">
+                                                {wait.start && wait.end ? `${wait.start} - ${wait.end} ${wait.loc} (${wait.reason})` : '...'}
+                                            </span>
+                                            <button onClick={() => removeWaitingTime(i)} className="text-red-400 hover:text-red-300"><Trash2 size={14} /></button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {waitingTimes.length === 0 && <p className="text-xs text-gray-600 italic">Keine Wartezeiten eingetragen.</p>}
+                            </div>
                         </div>
 
                         {/* 4. Sonstige Bemerkungen (Bottom) */}
