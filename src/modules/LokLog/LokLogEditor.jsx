@@ -429,14 +429,20 @@ const LokLogEditor = () => {
                 ws.getCell(`L${r}`).value = seg.notes;
             });
 
-            // 3. NOTES PROCESSING (FIXED 2026 LOGIC)
+            // 3. NOTES PROCESSING (SNAPSHOT & RESTORE)
             const REF_ROW_IDX = 31;
             const refRow = ws.getRow(REF_ROW_IDX);
             const refCell = ws.getCell(`A${REF_ROW_IDX}`);
-
             // Deep copy style and height
             const baseStyle = JSON.parse(JSON.stringify(refCell.style));
             const baseHeight = refRow.height;
+
+            // SNAPSHOT FOOTER (Row 33 "Gastfahrten") BEFORE MODIFICATION
+            const FOOTER_IDX = 33;
+            const footerRowSrc = ws.getRow(FOOTER_IDX);
+            const footerHeight = footerRowSrc.height;
+            // Capture style from first cell (Header usually defines row style)
+            const footerStyle = JSON.parse(JSON.stringify(ws.getCell(`A${FOOTER_IDX}`).style));
 
             // Helper: Word-Based Split (Conservative limit 80 to ensure 1 line per row)
             const smartSplit = (text, limit = 80) => {
@@ -473,7 +479,7 @@ const LokLogEditor = () => {
 
             // 3. INSERT & SANITIZE (If needed)
             if (rowsToAdd > 0) {
-                const INSERT_AT = 32; // Push "Gastfahrten" (Row 33) down
+                const INSERT_AT = 33; // Push "Gastfahrten" (Row 33) down
 
                 // Insert blank rows
                 const emptyRows = new Array(rowsToAdd).fill(null).map(() => []);
@@ -517,6 +523,20 @@ const LokLogEditor = () => {
                     const neighbor = ws.getCell(r, 15);
                     neighbor.border = { left: { style: 'medium' } };
                 }
+
+                // B) RESTORE FOOTER ROW FORMAT
+                // The footer is now at 33 + rowsToAdd
+                const newFooterIdx = 33 + rowsToAdd;
+                const newFooterRow = ws.getRow(newFooterIdx);
+
+                // Restore Height
+                newFooterRow.height = footerHeight;
+
+                // Restore Style (Apply to key cells A and H where merges start)
+                const cellA = ws.getCell(`A${newFooterIdx}`);
+                cellA.style = footerStyle;
+
+                newFooterRow.commit();
             }
 
             // 4. WRITE CONTENT
