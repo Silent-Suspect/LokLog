@@ -151,8 +151,8 @@ const LokLogEditor = () => {
             if (parsed.date === expectedDate) {
                 setShift(parsed.shift);
                 setSegments(parsed.segments);
-                setGuestRides(parsed.guestRides || []);
-                setWaitingTimes(parsed.waitingTimes || []);
+                setGuestRides(parsed.shift.guest_rides || parsed.guestRides || []);
+                setWaitingTimes(parsed.shift.waiting_times || parsed.waitingTimes || []);
                 setHasDraft(true);
                 return true;
             }
@@ -276,10 +276,12 @@ const LokLogEditor = () => {
         try {
             const draftData = {
                 date,
-                shift,
+                shift: {
+                    ...shift,
+                    guest_rides: guestRides,
+                    waiting_times: waitingTimes
+                },
                 segments,
-                guestRides,
-                waitingTimes,
                 timestamp: new Date().getTime()
             };
             localStorage.setItem(draftKey, JSON.stringify(draftData));
@@ -721,7 +723,7 @@ const LokLogEditor = () => {
                             </span>
                         )}
                     </div>
-                    <p className="text-gray-400">Erfasse deine Schicht für {new Date(date).toLocaleDateString('de-DE')}</p>
+                    <p className="text-gray-400">Erfasse deine Schicht für den {new Date(date).toLocaleDateString('de-DE')}</p>
                 </div>
                 <div className="flex items-center gap-2 bg-dark p-1 rounded-lg border border-gray-700">
                     <Calendar size={18} className="text-gray-400 ml-2" />
