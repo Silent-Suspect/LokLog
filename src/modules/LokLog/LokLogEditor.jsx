@@ -333,10 +333,10 @@ const LokLogEditor = () => {
             const res = await fetch('/api/template');
             if (!res.ok) throw new Error(`Template load failed: ${res.statusText}`);
 
-            // Check for HTML response (SPA Fallback issue in local dev)
+            // Check for HTML response (SPA Fallback issue in local dev or error pages)
             const contentType = res.headers.get('content-type');
             if (contentType && contentType.includes('text/html')) {
-                throw new Error("Local Env Error: The API returned HTML instead of an Excel file. This usually means the proxy for '/api/template' is missing or the TEMPLATE_URL is not configured locally.");
+                throw new Error("API Error: The server returned HTML instead of an Excel file. Verify the '/api/template' endpoint.");
             }
 
             const buffer = await res.arrayBuffer();
