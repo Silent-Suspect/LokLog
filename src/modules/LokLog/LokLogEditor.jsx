@@ -473,7 +473,7 @@ const LokLogEditor = () => {
 
             // 3. INSERT & SANITIZE (If needed)
             if (rowsToAdd > 0) {
-                const INSERT_AT = 33; // Push "Gastfahrten" (Row 33) down
+                const INSERT_AT = 32; // Push "Gastfahrten" (Row 33) down
 
                 // Insert blank rows
                 const emptyRows = new Array(rowsToAdd).fill(null).map(() => []);
