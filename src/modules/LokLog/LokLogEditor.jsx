@@ -77,6 +77,18 @@ const LokLogEditor = () => {
         return () => clearTimeout(timeoutId);
     }, [shift, segments, guestRides, waitingTimes, date]);
 
+    const safeJSONParse = (val) => {
+        if (!val) return [];
+        if (Array.isArray(val)) return val;
+        if (typeof val === 'object') return val; // Already an object
+        try {
+            return JSON.parse(val);
+        } catch (e) {
+            console.warn("Failed to parse JSON:", val, e);
+            return [];
+        }
+    };
+
     const loadShift = async (selectedDate) => {
         setLoading(true);
         setHasDraft(false);
@@ -113,7 +125,7 @@ const LokLogEditor = () => {
                         energy2_start: data.shift.energy_28_start,
                         energy2_end: data.shift.energy_28_end,
                         notes: data.shift.comments,
-                        flags: JSON.parse(data.shift.status_json || '{}')
+                        flags: safeJSONParse(data.shift.status_json || '{}')
                     });
                     setSegments(data.segments.map(s => ({
                         ...s,
@@ -121,8 +133,8 @@ const LokLogEditor = () => {
                         from_code: s.from_station,
                         to_code: s.to_station
                     })) || []);
-                    setGuestRides(data.shift.guest_rides || []);
-                    setWaitingTimes(data.shift.waiting_times || []);
+                    setGuestRides(safeJSONParse(data.shift.guest_rides));
+                    setWaitingTimes(safeJSONParse(data.shift.waiting_times));
                     // We found server data, so technically no "unsaved draft" needed unless we want to keep it?
                     // Usually server is authority.
                     setHasDraft(false);
@@ -654,7 +666,7 @@ const LokLogEditor = () => {
                         totalWaitMinutes += dur.mins;
 
                         const text = `${w.start} - ${w.end} ${w.loc || ''} (${w.reason || ''})`;
-                        ws.getCell(`H${currentRow}`).value = text;
+                        ws.getCell(`I${currentRow}`).value = text;
                     }
                 }
             }
