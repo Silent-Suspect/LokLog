@@ -352,15 +352,12 @@ const LokLogEditor = () => {
                     targetCell.style = JSON.parse(JSON.stringify(srcCell.style));
                 }
 
-                // Copy borders explicitly if needed suitable for ExcelJS
-                if (srcCell.border) targetCell.border = JSON.parse(JSON.stringify(srcCell.border));
-
-                // CRITICAL: Force Right Border (via Left Border on Col O)
+                // CRITICAL: Force Right Border (via Left Border on Col O / 15)
                 if (col === 15) {
                     const existingBorder = targetCell.border || {};
                     targetCell.border = {
                         ...existingBorder,
-                        left: { style: 'medium' }
+                        left: { style: 'medium' } // Acts as the table's right closing border
                     };
                 }
             }
@@ -543,12 +540,18 @@ const LokLogEditor = () => {
             // CLEANUP: Delete excess rows after the footer
             // Calculate where the document *should* end
             const finalContentRow = appendStartRow + (wsB.rowCount || 15);
-            // Delete the next 200 rows to ensure no "ghost" rows from Template A remain
+
+            // A) DELETE EXCESS ROWS
+            // Keep 1 buffer row, delete the rest (e.g., next 500 rows to be safe)
             try {
-                ws.spliceRows(finalContentRow + 2, 200);
-            } catch (e) {
-                // Ignore
-            }
+                ws.spliceRows(finalContentRow + 2, 500);
+            } catch (e) { /* Ignore range errors */ }
+
+            // B) DELETE EXCESS COLUMNS (Ghost Artifacts)
+            // Delete from Column P (16) onwards. Let's delete 20 columns to be safe.
+            try {
+                ws.spliceColumns(16, 20);
+            } catch (e) { /* Ignore range errors */ }
 
             // 7. Update Formulas
             // Relies on B structure: Gastfahrten(1), Data(2-7), Sum(8)
