@@ -418,11 +418,12 @@ const LokLogEditor = () => {
             });
 
             // 3. NOTES PROCESSING WITH STYLE CLONING
-            const REF_ROW_IDX = 30;
+            // NEW 2026 LOGIC: Reference Row is 31, Safe Zone ends at 32.
+            const REF_ROW_IDX = 31;
             const refRow = ws.getRow(REF_ROW_IDX);
             const refCell = ws.getCell(`A${REF_ROW_IDX}`);
 
-            // Deep copy style and height
+            // Deep copy style and height from Row 31
             const baseStyle = JSON.parse(JSON.stringify(refCell.style));
             const baseHeight = refRow.height;
 
@@ -455,23 +456,23 @@ const LokLogEditor = () => {
 
             // 4. Loop & Insert
             let currentRow = 30;
-            const SAFE_ROWS_END = 34;
+            const SAFE_ROWS_END = 32; // <--- CHANGED FROM 34 TO 32
 
             notesQueue.forEach(note => {
                 if (currentRow <= SAFE_ROWS_END) {
-                    // CASE A: SAFE ZONE (Rows 30-34) - Write to existing cells
+                    // CASE A: SAFE ZONE (Rows 30-32) - Write to existing cells
                     const cell = ws.getCell(`A${currentRow}`);
                     cell.value = note;
                     cell.alignment = { ...cell.alignment, wrapText: true, vertical: 'top' };
                 } else {
-                    // CASE B: OVERFLOW ZONE (Rows 35+)
+                    // CASE B: OVERFLOW ZONE (Rows 33+)
                     // 1. Insert & Format Height
                     ws.spliceRows(currentRow, 0, new Array(14).fill(null));
                     const newRow = ws.getRow(currentRow);
                     newRow.height = baseHeight;
                     newRow.commit();
 
-                    // 2. Safety Unmerge
+                    // 2. Safety Unmerge (prevent errors if previous rows were merged)
                     try {
                         ws.unMergeCells(`A${currentRow}:N${currentRow}`);
                     } catch (e) { }
@@ -479,16 +480,15 @@ const LokLogEditor = () => {
                     // 3. Merge A-N
                     ws.mergeCells(currentRow, 1, currentRow, 14);
 
-                    // 4. Apply Data & Base Style to Master Cell (A)
+                    // 4. Apply Data & Base Style (from Row 31)
                     const cell = ws.getCell(`A${currentRow}`);
                     cell.value = note;
                     cell.style = baseStyle;
 
-                    // 5. TRICK 17: Apply Left Border to Neighboring Cell (O)
-                    // Column O is index 15. This visually closes the box on the right side of N.
+                    // 5. Apply Left Border to Neighboring Cell (O)
                     const neighborCell = ws.getCell(currentRow, 15);
                     neighborCell.border = {
-                        left: { style: 'medium' } // Thick black border
+                        left: { style: 'medium' }
                     };
                 }
                 currentRow++;
