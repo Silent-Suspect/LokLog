@@ -456,55 +456,52 @@ const LokLogEditor = () => {
             // 4. Loop & Insert
             let currentRow = 30;
             const SAFE_ROWS_END = 32;
-            let addedRows = 0; // Track how many rows we pushed down
+            let addedRows = 0;
 
             notesQueue.forEach(note => {
                 if (currentRow <= SAFE_ROWS_END) {
-                    // CASE A: SAFE ZONE (Rows 30-32) - Write to existing cells
+                    // CASE A: SAFE ZONE (30-32)
                     const cell = ws.getCell(`A${currentRow}`);
                     cell.value = note;
                     cell.alignment = { ...cell.alignment, wrapText: true, vertical: 'top' };
                 } else {
-                    // CASE B: OVERFLOW ZONE (Rows 33+)
-                    // 1. Insert 1 empty row at current position (pushes "Gastfahrten" down)
-                    ws.spliceRows(currentRow, 1);
+                    // CASE B: OVERFLOW ZONE (33+)
+                    // 1. Insert 1 empty row. This pushes the content below (Gastfahrten) down.
+                    // Correct implementation: spliceRows(start, deleteCount=0, insertItem)
+                    ws.spliceRows(currentRow, 0, new Array(14).fill(null));
                     addedRows++;
 
-                    // 2. Format the NEW row (No unMerge needed, it's fresh)
+                    // 2. Format the NEW row
                     const newRow = ws.getRow(currentRow);
                     newRow.height = baseHeight;
                     newRow.commit();
 
-                    // 3. Merge A-N for the comment
+                    // 3. Merge A-N (Safe to do on a fresh row)
+                    // REMOVED: ws.unMergeCells(...) - this was causing the crash
                     ws.mergeCells(currentRow, 1, currentRow, 14);
 
-                    // 4. Apply Data & Base Style (from Row 31)
+                    // 4. Apply Data & Style
                     const cell = ws.getCell(`A${currentRow}`);
                     cell.value = note;
                     cell.style = baseStyle;
 
-                    // 5. Apply Left Border to Neighboring Cell (O)
+                    // 5. Border for Column O
                     const neighborCell = ws.getCell(currentRow, 15);
-                    neighborCell.border = {
-                        left: { style: 'medium' }
-                    };
+                    neighborCell.border = { left: { style: 'medium' } };
                 }
                 currentRow++;
             });
 
-            // 5. FIX FORMULA (Wartezeiten Summe)
-            // The original template has the sum at H40, summing H34:H39.
-            // Since we inserted rows *above* this section, everything shifted down by 'addedRows'.
+            // 5. UPDATE DYNAMIC FORMULA (Wartezeiten Summe)
+            // Original Sum: H40, Range: H34:H39
+            if (addedRows >= 0) {
+                const newSumRow = 40 + addedRows;
+                const startRange = 34 + addedRows;
+                const endRange = 39 + addedRows;
 
-            const originalSumRow = 40;
-            const newSumRow = originalSumRow + addedRows;
-
-            const rangeStart = 34 + addedRows;
-            const rangeEnd = 39 + addedRows;
-
-            const sumCell = ws.getCell(`H${newSumRow}`);
-            // Apply new formula with relative references
-            sumCell.value = { formula: `SUM(H${rangeStart}:H${rangeEnd})` };
+                const sumCell = ws.getCell(`H${newSumRow}`);
+                sumCell.value = { formula: `SUM(H${startRange}:H${endRange})` };
+            }
 
             // 3. Download
             const out = await workbook.xlsx.writeBuffer();
