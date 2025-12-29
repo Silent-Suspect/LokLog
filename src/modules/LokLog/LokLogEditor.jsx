@@ -476,7 +476,8 @@ const LokLogEditor = () => {
                 const INSERT_AT = 33; // Push "Gastfahrten" (Row 33) down
 
                 // Insert blank rows
-                ws.spliceRows(INSERT_AT, 0, new Array(rowsToAdd).fill(null));
+                const emptyRows = new Array(rowsToAdd).fill(null).map(() => []);
+                ws.spliceRows(INSERT_AT, 0, ...emptyRows);
 
                 // Loop through NEW rows to Clean
                 for (let i = 0; i < rowsToAdd; i++) {
