@@ -315,8 +315,6 @@ const LokLogEditor = () => {
             if (note.length > 15) {
                 overflowCounter++;
                 const starMarker = '*'.repeat(overflowCounter) + ')';
-                // Prefix removed as per request (redundant with star link)
-
                 extraComments.push(`${starMarker} ${note}`);
                 note = starMarker;
             }
@@ -326,32 +324,77 @@ const LokLogEditor = () => {
         return { processedSegments, extraComments };
     };
 
-    // Excel Export
+    // Helper: Append Worksheet (Lego Strategy)
+    const appendWorksheet = (sourceSheet, targetSheet, offsetRow) => {
+        sourceSheet.eachRow((srcRow, rowNumber) => {
+            const targetRowIdx = offsetRow + (rowNumber - 1);
+            const targetRow = targetSheet.getRow(targetRowIdx);
+
+            targetRow.height = srcRow.height;
+
+            srcRow.eachCell({ includeEmpty: true }, (srcCell, colNumber) => {
+                const targetCell = targetRow.getCell(colNumber);
+                targetCell.value = srcCell.value;
+                // Deep copy style
+                targetCell.style = JSON.parse(JSON.stringify(srcCell.style));
+
+                // Copy borders explicitly if needed suitable for ExcelJS
+                if (srcCell.border) targetCell.border = JSON.parse(JSON.stringify(srcCell.border));
+            });
+            targetRow.commit();
+        });
+
+        // Handle Merges
+        if (sourceSheet.model.merges) {
+            sourceSheet.model.merges.forEach(rangeStr => {
+                // Regex to parse "A33:G33" or "A1:B2"
+                const match = rangeStr.match(/([A-Z]+)([0-9]+):([A-Z]+)([0-9]+)/);
+                if (match) {
+                    const [_, startCol, startRow, endCol, endRow] = match;
+                    const newStartRow = parseInt(startRow) + offsetRow - 1; // -1 because B starts at 1
+                    const newEndRow = parseInt(endRow) + offsetRow - 1;
+
+                    try {
+                        targetSheet.mergeCells(`${startCol}${newStartRow}:${endCol}${newEndRow}`);
+                    } catch (e) {
+                        console.warn("Merge error during stitching:", e);
+                    }
+                }
+            });
+        }
+    };
+
+    // Excel Export (Lego Strategy)
     const handleExport = async () => {
         try {
-            // 1. Get Template
+            // 1. Get Templates (A and B)
             const res = await fetch('/api/template');
             if (!res.ok) throw new Error(`Template load failed: ${res.statusText}`);
 
-            // Check for HTML response (SPA Fallback issue in local dev or error pages)
-            const contentType = res.headers.get('content-type');
-            if (contentType && contentType.includes('text/html')) {
-                throw new Error("API Error: The server returned HTML instead of an Excel file. Verify the '/api/template' endpoint.");
-            }
+            const json = await res.json();
+            if (json.error) throw new Error("API Error: " + json.error);
+            if (!json.templateA || !json.templateB) throw new Error("Invalid API response: Missing templates");
 
-            const buffer = await res.arrayBuffer();
+            // Helper: Decode Base64 to ArrayBuffer
+            const base64ToArrayBuffer = (base64) => {
+                const binaryString = window.atob(base64);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                return bytes.buffer;
+            };
 
-            // 2. Fill Data
+            const bufferA = base64ToArrayBuffer(json.templateA);
+            const bufferB = base64ToArrayBuffer(json.templateB);
+
+            // 2. Load Template A (Master)
             const workbook = new ExcelJS.Workbook();
-            try {
-                await workbook.xlsx.load(buffer);
-            } catch (zipErr) {
-                console.error("ZIP Parse Error details:", zipErr); // Debug
-                throw new Error("Failed to parse Excel file. The downloaded content is likely corrupted or not a valid .xlsx file.");
-            }
+            await workbook.xlsx.load(bufferA);
             const ws = workbook.getWorksheet(1);
 
-            // Header
+            // 3. Fill Standard Data (Header, Segments, etc.)
             const dObj = new Date(date);
             const dayStr = String(dObj.getDate()).padStart(2, '0');
             const monthStr = String(dObj.getMonth() + 1).padStart(2, '0');
@@ -368,20 +411,15 @@ const LokLogEditor = () => {
             ws.getCell('E11').value = shift.start_time;
             ws.getCell('E26').value = shift.end_time;
 
-            // Duration
             const hours = Math.floor(duration / 60);
             const mins = duration % 60;
             ws.getCell('N26').value = `${hours},${mins.toString().padStart(2, '0')}`;
             ws.getCell('N28').value = shift.pause ? `${shift.pause}min.` : '';
 
             // Counters
-            // Counters (Only write if not empty string, to distinguish 0 from empty)
             const setNum = (cell, val) => {
-                if (val !== '' && val !== null && val !== undefined) {
-                    ws.getCell(cell).value = Number(val);
-                }
+                if (val !== '' && val !== null && val !== undefined) ws.getCell(cell).value = Number(val);
             };
-
             setNum('A13', shift.km_start);
             setNum('A28', shift.km_end);
             setNum('E13', shift.energy1_start);
@@ -389,37 +427,21 @@ const LokLogEditor = () => {
             setNum('I13', shift.energy2_start);
             setNum('I28', shift.energy2_end);
 
-            // Status Logic (Checkboxes)
-            // "Normaldienst" -> F7
+            // Flags
             if (shift.flags['Normaldienst']) ws.getCell('F7').value = 'X';
-
-            // "Bereitschaft" -> B (I7)
             if (shift.flags['Bereitschaft']) ws.getCell('I7').value = 'X';
-
-            // "Streckenkunde / EW / BR" -> K (B7)
             if (shift.flags['Streckenkunde / EW / BR']) ws.getCell('B7').value = 'X';
-
-            // "Ausfall vor DB" -> A1 (D7)
             if (shift.flags['Ausfall vor DB']) ws.getCell('D7').value = 'X';
-
-            // "Ausfall nach DB" -> A2 (L7)
             if (shift.flags['Ausfall nach DB']) ws.getCell('L7').value = 'X';
 
-            // Status Text Inputs (Specific Cells)
-            if (shift.flags['Streckenkunde / EW / BR']) {
-                ws.getCell('B8').value = shift.flags.param_streckenkunde;
-            }
-            if (shift.flags['Dienst verschoben']) {
-                ws.getCell('F8').value = shift.flags.param_dienst_verschoben;
-            }
+            if (shift.flags['Streckenkunde / EW / BR']) ws.getCell('B8').value = shift.flags.param_streckenkunde;
+            if (shift.flags['Dienst verschoben']) ws.getCell('F8').value = shift.flags.param_dienst_verschoben;
 
-            // Process Segments & Comments
+            // 4. Write Segments
             const { processedSegments, extraComments } = processExportData(segments);
-
-            // Segments (Rows 15, 17, 19, 21, 23)
-            const rows = [15, 17, 19, 21, 23];
+            const segmentRows = [15, 17, 19, 21, 23];
             processedSegments.slice(0, 5).forEach((seg, i) => {
-                const r = rows[i];
+                const r = segmentRows[i];
                 ws.getCell(`A${r}`).value = seg.train_nr;
                 ws.getCell(`C${r}`).value = seg.tfz;
                 ws.getCell(`D${r}`).value = seg.departure;
@@ -429,22 +451,7 @@ const LokLogEditor = () => {
                 ws.getCell(`L${r}`).value = seg.notes;
             });
 
-            // 3. NOTES PROCESSING (SNAPSHOT & RESTORE)
-            const REF_ROW_IDX = 31;
-            const refRow = ws.getRow(REF_ROW_IDX);
-            const refCell = ws.getCell(`A${REF_ROW_IDX}`);
-            // Deep copy style and height
-            const baseStyle = JSON.parse(JSON.stringify(refCell.style));
-            const baseHeight = refRow.height;
-
-            // SNAPSHOT FOOTER (Row 33 "Gastfahrten") BEFORE MODIFICATION
-            const FOOTER_IDX = 33;
-            const footerRowSrc = ws.getRow(FOOTER_IDX);
-            const footerHeight = footerRowSrc.height;
-            // Capture style from first cell (Header usually defines row style)
-            const footerStyle = JSON.parse(JSON.stringify(ws.getCell(`A${FOOTER_IDX}`).style));
-
-            // Helper: Word-Based Split (Conservative limit 80 to ensure 1 line per row)
+            // 5. Write Comments (Row 30+)
             const smartSplit = (text, limit = 80) => {
                 if (!text) return [];
                 const lines = [];
@@ -455,114 +462,63 @@ const LokLogEditor = () => {
                     let currentLine = words[0];
                     for (let i = 1; i < words.length; i++) {
                         const word = words[i];
-                        if ((currentLine + ' ' + word).length <= limit) {
-                            currentLine += ' ' + word;
-                        } else {
-                            lines.push(currentLine);
-                            currentLine = word;
-                        }
+                        if ((currentLine + ' ' + word).length <= limit) currentLine += ' ' + word;
+                        else { lines.push(currentLine); currentLine = word; }
                     }
                     if (currentLine) lines.push(currentLine);
                 });
                 return lines;
             };
 
-            // 1. COLLECT CONTENT
             let allLines = [];
             extraComments.forEach(note => allLines.push(...smartSplit(note)));
             if (shift.notes) allLines.push(...smartSplit(shift.notes));
 
-            // 2. CALCULATE SPACE
-            // Standard space is rows 30, 31, 32.
-            const STANDARD_CAPACITY = 3;
-            const rowsToAdd = Math.max(0, allLines.length - STANDARD_CAPACITY);
+            const START_COMMENT_ROW = 30;
+            let lastCommentRow = START_COMMENT_ROW - 1;
 
-            // 3. INSERT & SANITIZE (If needed)
-            if (rowsToAdd > 0) {
-                const INSERT_AT = 33; // Push "Gastfahrten" (Row 33) down
+            // Get Reference Style (Row 30)
+            const refCell = ws.getCell(`A${START_COMMENT_ROW}`);
+            const baseStyle = JSON.parse(JSON.stringify(refCell.style));
 
-                // Insert blank rows
-                const emptyRows = new Array(rowsToAdd).fill(null).map(() => []);
-                ws.spliceRows(INSERT_AT, 0, ...emptyRows);
-
-                // Loop through NEW rows to Clean
-                for (let i = 0; i < rowsToAdd; i++) {
-                    const r = INSERT_AT + i;
-                    const newRow = ws.getRow(r);
-                    newRow.height = baseHeight;
-
-                    // A. Clear Styles first
-                    for (let c = 1; c <= 15; c++) {
-                        ws.getCell(r, c).style = {};
-                        ws.getCell(r, c).border = {};
-                        ws.getCell(r, c).value = null;
-                    }
-
-                    // B. PRECISE UNMERGE STRATEGY
-                    // The original row 33 likely had merges A-G and H-N.
-                    // We must unmerge these specific ranges if they were copied to the new row.
-                    try { ws.unMergeCells(`A${r}:G${r}`); } catch (e) { }
-                    try { ws.unMergeCells(`H${r}:N${r}`); } catch (e) { }
-                    // Just in case, try the full row unmerge too
-                    try { ws.unMergeCells(`A${r}:N${r}`); } catch (e) { }
-
-                    newRow.commit(); // Save clean state
-
-                    // C. Now Safe to Merge A-N
-                    try {
-                        ws.mergeCells(r, 1, r, 14);
-                    } catch (e) {
-                        console.warn("Merge conflict resolved by ignoring:", e);
-                    }
-
-                    // D. Apply Style
-                    const cell = ws.getCell(`A${r}`);
-                    cell.style = baseStyle;
-
-                    // E. Border for Neighbor (Column O)
-                    const neighbor = ws.getCell(r, 15);
-                    neighbor.border = { left: { style: 'medium' } };
-                }
-
-                // B) RESTORE FOOTER ROW FORMAT
-                // The footer is now at 33 + rowsToAdd
-                const newFooterIdx = 33 + rowsToAdd;
-                const newFooterRow = ws.getRow(newFooterIdx);
-
-                // Restore Height
-                newFooterRow.height = footerHeight;
-
-                // Restore Style (Apply to key cells A and H where merges start)
-                const cellA = ws.getCell(`A${newFooterIdx}`);
-                cellA.style = footerStyle;
-
-                newFooterRow.commit();
-            }
-
-            // 4. WRITE CONTENT
             allLines.forEach((line, index) => {
-                const currentRow = 30 + index;
+                const currentRow = START_COMMENT_ROW + index;
                 const cell = ws.getCell(`A${currentRow}`);
                 cell.value = line;
+                cell.style = baseStyle;
                 cell.alignment = { ...baseStyle.alignment, wrapText: true, vertical: 'top' };
+                try { ws.mergeCells(`A${currentRow}:N${currentRow}`); } catch (e) { }
+                const neighbor = ws.getCell(currentRow, 15);
+                neighbor.border = { left: { style: 'medium' } }; // Restore border
+
+                lastCommentRow = currentRow;
             });
 
-            // 5. UPDATE FORMULA (Footer Shift)
-            // Original Sum: H40, Range: H34:H39
-            if (rowsToAdd >= 0) {
-                const newSumRow = 40 + rowsToAdd;
-                const startRange = 34 + rowsToAdd;
-                const endRange = 39 + rowsToAdd;
+            // Ensure we don't stitch B before 33 (Template A covers 1-32)
+            if (lastCommentRow < 32) lastCommentRow = 32;
 
-                const sumCell = ws.getCell(`H${newSumRow}`);
-                // Re-apply a basic border style to the sum cell if it lost it during the shift
-                sumCell.value = { formula: `SUM(H${startRange}:H${endRange})` };
-            }
+            // 6. Append Template B (Footer)
+            const wbB = new ExcelJS.Workbook();
+            await wbB.xlsx.load(bufferB);
+            const wsB = wbB.getWorksheet(1);
 
-            // 3. Download
+            const appendStartRow = lastCommentRow + 1;
+            appendWorksheet(wsB, ws, appendStartRow);
+
+            // 7. Update Formulas
+            // Relies on B structure: Gastfahrten(1), Data(2-7), Sum(8)
+            const sumRow = appendStartRow + 7;
+            const startRange = appendStartRow + 1;
+            const endRange = appendStartRow + 6;
+
+            const sumCell = ws.getCell(`H${sumRow}`);
+            sumCell.value = { formula: `SUM(H${startRange}:H${endRange})` };
+
+
+            // 8. Download
+            // Download logic
             const out = await workbook.xlsx.writeBuffer();
             const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-
             const fileName = `${date}_Fahrtenbericht_${user?.lastName || ''}, ${user?.firstName || ''}.xlsx`;
             saveAs(blob, fileName);
 
@@ -833,9 +789,9 @@ const LokLogEditor = () => {
 
                 {/* TOAST NOTIFICATION */}
                 {toast.visible && (
-                    <div className={`fixed bottom-24 right-4 z-50 px-6 py-3 rounded-xl border shadow-2xl animate-in slide-in-from-bottom-5 fade-in duration-300 font-bold flex items-center gap-3
+                    <div className={`fixed bottom - 24 right - 4 z - 50 px - 6 py - 3 rounded - xl border shadow - 2xl animate -in slide -in -from - bottom - 5 fade -in duration - 300 font - bold flex items - center gap - 3
                         ${toast.type === 'error' ? 'bg-red-900/90 border-red-500 text-white' : 'bg-gray-900/90 border-green-500 text-white'}
-                    `}>
+            `}>
                         {toast.type === 'error' ? (
                             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                         ) : (
