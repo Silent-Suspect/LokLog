@@ -331,12 +331,24 @@ const LokLogEditor = () => {
         try {
             // 1. Get Template
             const res = await fetch('/api/template');
-            if (!res.ok) throw new Error('Template load failed');
+            if (!res.ok) throw new Error(`Template load failed: ${res.statusText}`);
+
+            // Check for HTML response (SPA Fallback issue in local dev)
+            const contentType = res.headers.get('content-type');
+            if (contentType && contentType.includes('text/html')) {
+                throw new Error("Local Env Error: The API returned HTML instead of an Excel file. This usually means the proxy for '/api/template' is missing or the TEMPLATE_URL is not configured locally.");
+            }
+
             const buffer = await res.arrayBuffer();
 
             // 2. Fill Data
             const workbook = new ExcelJS.Workbook();
-            await workbook.xlsx.load(buffer);
+            try {
+                await workbook.xlsx.load(buffer);
+            } catch (zipErr) {
+                console.error("ZIP Parse Error details:", zipErr); // Debug
+                throw new Error("Failed to parse Excel file. The downloaded content is likely corrupted or not a valid .xlsx file.");
+            }
             const ws = workbook.getWorksheet(1);
 
             // Header
@@ -466,47 +478,51 @@ const LokLogEditor = () => {
                 // Insert blank rows
                 ws.spliceRows(INSERT_AT, 0, new Array(rowsToAdd).fill(null));
 
-                // Loop through NEW rows to Clean & Format
+                // Loop through NEW rows to Clean
                 for (let i = 0; i < rowsToAdd; i++) {
                     const r = INSERT_AT + i;
                     const newRow = ws.getRow(r);
                     newRow.height = baseHeight;
 
-                    // CRITICAL: SANITIZE CELLS
-                    // spliceRows often copies styles from the row that was pushed down.
-                    // We must wipe them clean.
+                    // A. Clear Styles first
                     for (let c = 1; c <= 15; c++) {
                         ws.getCell(r, c).style = {};
                         ws.getCell(r, c).border = {};
+                        ws.getCell(r, c).value = null;
                     }
-                    newRow.commit();
 
-                    // Safety Unmerge (in case it inherited a merge)
-                    try { ws.unMergeCells(r, 1, r, 14); } catch (e) { }
+                    // B. PRECISE UNMERGE STRATEGY
+                    // The original row 33 likely had merges A-G and H-N.
+                    // We must unmerge these specific ranges if they were copied to the new row.
+                    try { ws.unMergeCells(`A${r}:G${r}`); } catch (e) { }
+                    try { ws.unMergeCells(`H${r}:N${r}`); } catch (e) { }
+                    // Just in case, try the full row unmerge too
+                    try { ws.unMergeCells(`A${r}:N${r}`); } catch (e) { }
 
-                    // Now Merge A-N
-                    ws.mergeCells(r, 1, r, 14);
+                    newRow.commit(); // Save clean state
 
-                    // Apply Base Style
+                    // C. Now Safe to Merge A-N
+                    try {
+                        ws.mergeCells(r, 1, r, 14);
+                    } catch (e) {
+                        console.warn("Merge conflict resolved by ignoring:", e);
+                    }
+
+                    // D. Apply Style
                     const cell = ws.getCell(`A${r}`);
                     cell.style = baseStyle;
 
-                    // Re-apply Right Border/Neighbor (Column O / 15) if needed
-                    // (Assuming Column O needs a left border to close the box)
+                    // E. Border for Neighbor (Column O)
                     const neighbor = ws.getCell(r, 15);
-                    neighbor.style = {}; // Clear ghost styles first
                     neighbor.border = { left: { style: 'medium' } };
                 }
             }
 
             // 4. WRITE CONTENT
-            // We write sequentially starting at 30.
-            // Rows 30, 31, 32 are existing. Rows 33+ are the new ones.
             allLines.forEach((line, index) => {
                 const currentRow = 30 + index;
                 const cell = ws.getCell(`A${currentRow}`);
                 cell.value = line;
-                // Enforce alignment again just in case
                 cell.alignment = { ...baseStyle.alignment, wrapText: true, vertical: 'top' };
             });
 
@@ -518,7 +534,7 @@ const LokLogEditor = () => {
                 const endRange = 39 + rowsToAdd;
 
                 const sumCell = ws.getCell(`H${newSumRow}`);
-                // Ensure the cell exists and has correct styling (copy from a neighbor if strictly needed)
+                // Re-apply a basic border style to the sum cell if it lost it during the shift
                 sumCell.value = { formula: `SUM(H${startRange}:H${endRange})` };
             }
 
