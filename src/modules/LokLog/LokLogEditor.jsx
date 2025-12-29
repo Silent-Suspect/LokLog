@@ -446,7 +446,7 @@ const LokLogEditor = () => {
             const hours = Math.floor(duration / 60);
             const mins = duration % 60;
             ws.getCell('N26').value = `${hours},${mins.toString().padStart(2, '0')}`;
-            ws.getCell('N28').value = shift.pause ? `${shift.pause}min.` : '';
+            ws.getCell('N28').value = shift.pause ? `${shift.pause} min.` : '';
 
             // Counters
             const setNum = (cell, val) => {
@@ -469,7 +469,33 @@ const LokLogEditor = () => {
             if (shift.flags['Streckenkunde / EW / BR']) ws.getCell('B8').value = shift.flags.param_streckenkunde;
             if (shift.flags['Dienst verschoben']) ws.getCell('F8').value = shift.flags.param_dienst_verschoben;
 
-            // 4. Write Segments
+            // 4. Resolve Station Names & Write Segments
+            // Build unique list of codes for lookup
+            const uniqueCodes = [...new Set(segments.flatMap(s => [s.from_code, s.to_code].filter(Boolean)))];
+            const stationMap = new Map();
+
+            if (uniqueCodes.length > 0) {
+                try {
+                    const queryParams = new URLSearchParams({ codes: uniqueCodes.join(',') });
+                    const stRes = await fetch(`/api/stations?${queryParams}`);
+                    if (stRes.ok) {
+                        const stData = await stRes.json();
+                        (stData.results || []).forEach(st => {
+                            // Map uppercase code to name
+                            stationMap.set(st.code.toUpperCase(), st.name);
+                        });
+                    }
+                } catch (e) {
+                    console.warn("Station lookup failed, falling back to codes", e);
+                }
+            }
+
+            const getStationName = (code) => {
+                if (!code) return '';
+                // Try map first, fallback to code
+                return stationMap.get(code.toUpperCase()) || code;
+            };
+
             const { processedSegments, extraComments } = processExportData(segments);
             const segmentRows = [15, 17, 19, 21, 23];
             processedSegments.slice(0, 5).forEach((seg, i) => {
@@ -478,8 +504,11 @@ const LokLogEditor = () => {
                 ws.getCell(`C${r}`).value = seg.tfz;
                 ws.getCell(`D${r}`).value = seg.departure;
                 ws.getCell(`H${r}`).value = seg.arrival;
-                ws.getCell(`E${r}`).value = seg.from_code;
-                ws.getCell(`I${r}`).value = seg.to_code;
+
+                // Use Resolved Names
+                ws.getCell(`E${r}`).value = getStationName(seg.from_code);
+                ws.getCell(`I${r}`).value = getStationName(seg.to_code);
+
                 ws.getCell(`L${r}`).value = seg.notes;
             });
 
