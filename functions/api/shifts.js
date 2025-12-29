@@ -77,14 +77,17 @@ export async function onRequestPut(context) {
                 km_start, km_end, 
                 energy_18_start, energy_18_end, 
                 energy_28_start, energy_28_end,
-                status_json, comments
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                status_json, comments,
+                guest_rides, waiting_times
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
             shiftId, userId, shift.date, shift.start_time, shift.end_time,
             shift.km_start, shift.km_end,
             shift.energy_18_start, shift.energy_18_end,
             shift.energy_28_start, shift.energy_28_end,
-            JSON.stringify(shift.flags), shift.notes
+            JSON.stringify(shift.flags), shift.notes,
+            JSON.stringify(shift.guest_rides || []),
+            JSON.stringify(shift.waiting_times || [])
         ));
 
         // 2. Delete old segments
