@@ -640,7 +640,6 @@ const LokLogEditor = () => {
             // Row 8: Sum Row
 
             const MAX_SLOTS = 6;
-            let totalWaitMinutes = 0;
 
             for (let i = 0; i < MAX_SLOTS; i++) {
                 // Determine target row index (Header is at appendStartRow, so data starts at +1)
@@ -662,9 +661,6 @@ const LokLogEditor = () => {
                 if (waitingTimes && waitingTimes[i]) {
                     const w = waitingTimes[i];
                     if (w.start && w.end) {
-                        const dur = getDuration(w.start, w.end);
-                        totalWaitMinutes += dur.mins;
-
                         const text = `${w.start} - ${w.end} ${w.loc || ''} (${w.reason || ''})`;
                         ws.getCell(`I${currentRow}`).value = text;
                     }
@@ -687,17 +683,17 @@ const LokLogEditor = () => {
                 ws.spliceColumns(16, 20);
             } catch (e) { /* Ignore range errors */ }
 
-            // 8. WRITE TOTAL WAITING TIME (Overwrite Sum Formula)
-            // The Sum cell is usually at the bottom of the block (Row 8 of Template B)
-            // Since we wrote text into Column H, Excel's =SUM() won't work. We write the result manually.
+            // 8. WRITE TOTAL WAITING TIME (Formula Only)
+            // Restore the SUM formula pointing to the correct new rows.
+            // We do NOT calculate the sum in JS. We strictly set the Excel formula.
+
             const sumRowIdx = appendStartRow + 7;
-            const totalH = Math.floor(totalWaitMinutes / 60);
-            const totalM = totalWaitMinutes % 60;
-            const totalStr = `${totalH},${totalM.toString().padStart(2, '0')}`; // Decimal format "1,30" or Time format "1:30"
+            const rangeStart = appendStartRow + 1;
+            const rangeEnd = appendStartRow + 6;
 
             const sumCell = ws.getCell(`H${sumRowIdx}`);
-            sumCell.value = totalStr;
-            sumCell.alignment = { horizontal: 'right' }; // Align right to look like a number
+            sumCell.value = { formula: `SUM(H${rangeStart}:H${rangeEnd})` };
+            sumCell.alignment = { horizontal: 'right' };
 
 
             // 8. Download
