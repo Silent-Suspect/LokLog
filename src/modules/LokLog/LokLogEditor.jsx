@@ -449,55 +449,58 @@ const LokLogEditor = () => {
                 return lines;
             };
 
-            let notesQueue = [];
-            extraComments.forEach(note => notesQueue.push(...smartSplit(note)));
-            if (shift.notes) notesQueue.push(...smartSplit(shift.notes));
+            // 1. COLLECT ALL LINES
+            let allLines = [];
+            extraComments.forEach(note => allLines.push(...smartSplit(note)));
+            if (shift.notes) allLines.push(...smartSplit(shift.notes));
 
-            // 4. Loop & Insert
-            let currentRow = 30;
-            const SAFE_ROWS_END = 32;
-            let addedRows = 0;
+            // 2. CALCULATE NEEDED SPACE
+            const STANDARD_CAPACITY = 3; // Rows 30, 31, 32
+            const rowsToAdd = Math.max(0, allLines.length - STANDARD_CAPACITY);
 
-            notesQueue.forEach(note => {
-                if (currentRow <= SAFE_ROWS_END) {
-                    // CASE A: SAFE ZONE (30-32)
-                    const cell = ws.getCell(`A${currentRow}`);
-                    cell.value = note;
-                    cell.alignment = { ...cell.alignment, wrapText: true, vertical: 'top' };
-                } else {
-                    // CASE B: OVERFLOW ZONE (33+)
-                    // 1. Insert 1 empty row. This pushes the content below (Gastfahrten) down.
-                    // Correct implementation: spliceRows(start, deleteCount=0, insertItem)
-                    ws.spliceRows(currentRow, 0, new Array(14).fill(null));
-                    addedRows++;
+            // 3. BATCH INSERTION (If needed)
+            if (rowsToAdd > 0) {
+                const INSERT_AT = 32; // Insert after row 31, pushing original 32 down
 
-                    // 2. Format the NEW row
-                    const newRow = ws.getRow(currentRow);
+                // Insert empty rows
+                ws.spliceRows(INSERT_AT, 0, new Array(rowsToAdd).fill(null));
+
+                // Format new rows
+                for (let i = 0; i < rowsToAdd; i++) {
+                    const r = INSERT_AT + i;
+                    const newRow = ws.getRow(r);
                     newRow.height = baseHeight;
                     newRow.commit();
 
-                    // 3. Merge A-N (Safe to do on a fresh row)
-                    // REMOVED: ws.unMergeCells(...) - this was causing the crash
-                    ws.mergeCells(currentRow, 1, currentRow, 14);
+                    // Merge A-N
+                    try { ws.unMergeCells(r, 1, r, 14); } catch (e) { }
+                    ws.mergeCells(r, 1, r, 14);
 
-                    // 4. Apply Data & Style
-                    const cell = ws.getCell(`A${currentRow}`);
-                    cell.value = note;
+                    // Style
+                    const cell = ws.getCell(`A${r}`);
                     cell.style = baseStyle;
 
-                    // 5. Border for Column O
-                    const neighborCell = ws.getCell(currentRow, 15);
-                    neighborCell.border = { left: { style: 'medium' } };
+                    // Border Neighbor
+                    ws.getCell(r, 15).border = { left: { style: 'medium' } };
                 }
-                currentRow++;
+            }
+
+            // 4. WRITE CONTENT
+            allLines.forEach((line, index) => {
+                const currentRow = 30 + index;
+                const cell = ws.getCell(`A${currentRow}`);
+                cell.value = line;
+                // Ensure alignment is set (especially for original rows 30-32)
+                cell.alignment = { ...cell.alignment, wrapText: true, vertical: 'top' };
             });
 
-            // 5. UPDATE DYNAMIC FORMULA (Wartezeiten Summe)
+            // 5. UPDATE DYNAMIC FORMULA
             // Original Sum: H40, Range: H34:H39
-            if (addedRows >= 0) {
-                const newSumRow = 40 + addedRows;
-                const startRange = 34 + addedRows;
-                const endRange = 39 + addedRows;
+            // With rowsToAdd, everything shifts down.
+            if (rowsToAdd >= 0) {
+                const newSumRow = 40 + rowsToAdd;
+                const startRange = 34 + rowsToAdd;
+                const endRange = 39 + rowsToAdd;
 
                 const sumCell = ws.getCell(`H${newSumRow}`);
                 sumCell.value = { formula: `SUM(H${startRange}:H${endRange})` };
