@@ -438,8 +438,8 @@ const LokLogEditor = () => {
             const baseStyle = JSON.parse(JSON.stringify(refCell.style));
             const baseHeight = refRow.height;
 
-            // Helper: Word-Based Split (Reduced limit to 90 chars to ensure accurate line count)
-            const smartSplit = (text, limit = 90) => {
+            // Helper: Word-Based Split (Conservative limit 80 to ensure 1 line per row)
+            const smartSplit = (text, limit = 80) => {
                 if (!text) return [];
                 const lines = [];
                 const paragraphs = text.toString().split('\n');
@@ -473,7 +473,7 @@ const LokLogEditor = () => {
 
             // 3. INSERT & SANITIZE (If needed)
             if (rowsToAdd > 0) {
-                const INSERT_AT = 31; // Insert at 31 (Middle of block) to safely push footer down
+                const INSERT_AT = 33; // Push "Gastfahrten" (Row 33) down
 
                 // Insert blank rows
                 ws.spliceRows(INSERT_AT, 0, new Array(rowsToAdd).fill(null));
@@ -491,7 +491,12 @@ const LokLogEditor = () => {
                         ws.getCell(r, c).value = null;
                     }
 
-                    // B. Simple Unmerge (Safety)
+                    // B. PRECISE UNMERGE STRATEGY
+                    // The original row 33 likely had merges A-G and H-N.
+                    // We must unmerge these specific ranges if they were copied to the new row.
+                    try { ws.unMergeCells(`A${r}:G${r}`); } catch (e) { }
+                    try { ws.unMergeCells(`H${r}:N${r}`); } catch (e) { }
+                    // Just in case, try the full row unmerge too
                     try { ws.unMergeCells(`A${r}:N${r}`); } catch (e) { }
 
                     newRow.commit(); // Save clean state
