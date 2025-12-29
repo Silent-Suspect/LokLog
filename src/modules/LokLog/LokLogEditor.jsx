@@ -372,7 +372,7 @@ const LokLogEditor = () => {
             const hours = Math.floor(duration / 60);
             const mins = duration % 60;
             ws.getCell('N26').value = `${hours},${mins.toString().padStart(2, '0')}`;
-            ws.getCell('N28').value = `${shift.pause}min.`;
+            ws.getCell('N28').value = shift.pause ? `${shift.pause}min.` : '';
 
             // Counters
             // Counters (Only write if not empty string, to distinguish 0 from empty)
@@ -438,8 +438,8 @@ const LokLogEditor = () => {
             const baseStyle = JSON.parse(JSON.stringify(refCell.style));
             const baseHeight = refRow.height;
 
-            // Helper: Word-Based Split
-            const smartSplit = (text, limit = 135) => {
+            // Helper: Word-Based Split (Reduced limit to 90 chars to ensure accurate line count)
+            const smartSplit = (text, limit = 90) => {
                 if (!text) return [];
                 const lines = [];
                 const paragraphs = text.toString().split('\n');
