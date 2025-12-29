@@ -417,13 +417,12 @@ const LokLogEditor = () => {
                 ws.getCell(`L${r}`).value = seg.notes;
             });
 
-            // 3. NOTES PROCESSING WITH STYLE CLONING
-            // NEW 2026 LOGIC: Reference Row is 31, Safe Zone ends at 32.
+            // 3. NOTES PROCESSING (FIXED 2026 LOGIC)
             const REF_ROW_IDX = 31;
             const refRow = ws.getRow(REF_ROW_IDX);
             const refCell = ws.getCell(`A${REF_ROW_IDX}`);
 
-            // Deep copy style and height from Row 31
+            // Deep copy style and height
             const baseStyle = JSON.parse(JSON.stringify(refCell.style));
             const baseHeight = refRow.height;
 
@@ -456,7 +455,8 @@ const LokLogEditor = () => {
 
             // 4. Loop & Insert
             let currentRow = 30;
-            const SAFE_ROWS_END = 32; // <--- CHANGED FROM 34 TO 32
+            const SAFE_ROWS_END = 32;
+            let addedRows = 0; // Track how many rows we pushed down
 
             notesQueue.forEach(note => {
                 if (currentRow <= SAFE_ROWS_END) {
@@ -466,18 +466,16 @@ const LokLogEditor = () => {
                     cell.alignment = { ...cell.alignment, wrapText: true, vertical: 'top' };
                 } else {
                     // CASE B: OVERFLOW ZONE (Rows 33+)
-                    // 1. Insert & Format Height
-                    ws.spliceRows(currentRow, 0, new Array(14).fill(null));
+                    // 1. Insert 1 empty row at current position (pushes "Gastfahrten" down)
+                    ws.spliceRows(currentRow, 1);
+                    addedRows++;
+
+                    // 2. Format the NEW row (No unMerge needed, it's fresh)
                     const newRow = ws.getRow(currentRow);
                     newRow.height = baseHeight;
                     newRow.commit();
 
-                    // 2. Safety Unmerge (prevent errors if previous rows were merged)
-                    try {
-                        ws.unMergeCells(`A${currentRow}:N${currentRow}`);
-                    } catch (e) { }
-
-                    // 3. Merge A-N
+                    // 3. Merge A-N for the comment
                     ws.mergeCells(currentRow, 1, currentRow, 14);
 
                     // 4. Apply Data & Base Style (from Row 31)
@@ -493,6 +491,20 @@ const LokLogEditor = () => {
                 }
                 currentRow++;
             });
+
+            // 5. FIX FORMULA (Wartezeiten Summe)
+            // The original template has the sum at H40, summing H34:H39.
+            // Since we inserted rows *above* this section, everything shifted down by 'addedRows'.
+
+            const originalSumRow = 40;
+            const newSumRow = originalSumRow + addedRows;
+
+            const rangeStart = 34 + addedRows;
+            const rangeEnd = 39 + addedRows;
+
+            const sumCell = ws.getCell(`H${newSumRow}`);
+            // Apply new formula with relative references
+            sumCell.value = { formula: `SUM(H${rangeStart}:H${rangeEnd})` };
 
             // 3. Download
             const out = await workbook.xlsx.writeBuffer();
