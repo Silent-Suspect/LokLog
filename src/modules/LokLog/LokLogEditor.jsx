@@ -13,7 +13,12 @@ const LokLogEditor = () => {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [hasDraft, setHasDraft] = useState(false);
+    const [hasDraft, setHasDraft] = useState(false);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    // Conflict Resolution State
+    const [conflictState, setConflictState] = useState(null); // { serverData, localData, diffs }
+    const [selection, setSelection] = useState({}); // { [key]: 'local' | 'server' }
 
     // Toast State
     const [toast, setToast] = useState({ message: '', type: '', visible: false });
@@ -95,6 +100,111 @@ const LokLogEditor = () => {
         }
     };
 
+    const detectConflicts = (server, local) => {
+        const diffs = {};
+        const sShift = server.shift || {};
+        const lShift = local.shift || {};
+
+        // Helper: Compare JSON string or Object
+        const isDiff = (a, b) => JSON.stringify(a) !== JSON.stringify(b);
+
+        // 1. Times (Start, End, Pause)
+        if (sShift.start_time !== lShift.start_time || sShift.end_time !== lShift.end_time || sShift.pause != lShift.pause) {
+            diffs.times = { label: 'Dienstzeiten', local: `${lShift.start_time}-${lShift.end_time} (${lShift.pause}')`, server: `${sShift.start_time}-${sShift.end_time} (${sShift.pause}')` };
+        }
+
+        // 2. Counters (Km, Energy)
+        if (sShift.km_start != lShift.km_start || sShift.km_end != lShift.km_end ||
+            sShift.energy_18_start != lShift.energy1_start) {
+            diffs.counters = { label: 'Zählerstände', local: `Km: ${lShift.km_start}...`, server: `Km: ${sShift.km_start}...` };
+        }
+
+        // 3. Status/Flags
+        const sFlags = typeof sShift.status_json === 'string' ? JSON.parse(sShift.status_json || '{}') : (sShift.status_json || {});
+        if (isDiff(sFlags, lShift.flags)) {
+            diffs.status = { label: 'Status & Flags', local: 'Lokale Änderungen', server: 'Server Stand' };
+        }
+
+        // 4. Segments
+        const serverSegs = server.segments || [];
+        const localSegs = local.segments || [];
+        // Map server segments to compare structure if needed, but length/content check is good start
+        // Ideally we should compare critical fields or length
+        const sSegsMapped = serverSegs.map(s => ({ from_code: s.from_station, to_code: s.to_station, train_nr: s.train_nr }));
+        const lSegsMapped = localSegs.map(s => ({ from_code: s.from_code, to_code: s.to_code, train_nr: s.train_nr }));
+
+        if (isDiff(serverSegs.length, localSegs.length) || isDiff(sSegsMapped, lSegsMapped)) {
+            diffs.segments = { label: 'Fahrtenliste', local: `${localSegs.length} Einträge`, server: `${serverSegs.length} Einträge` };
+        }
+
+        // 5. Notes
+        if ((sShift.comments || '') !== (lShift.notes || '')) {
+            diffs.notes = { label: 'Bemerkungen', local: (lShift.notes || '').slice(0, 20) + '...', server: (sShift.comments || '').slice(0, 20) + '...' };
+        }
+
+        // 6. Guest Rides & Waiting Times
+        // Server sends these as strings usually, need to parse
+        const sGuest = safeJSONParse(sShift.guest_rides);
+        const lGuest = local.guestRides || safeJSONParse(lShift.guest_rides);
+
+        const sWait = safeJSONParse(sShift.waiting_times);
+        const lWait = local.waitingTimes || safeJSONParse(lShift.waiting_times);
+
+        if (isDiff(sGuest, lGuest)) diffs.guest = { label: 'Gastfahrten', local: 'Geändert', server: 'Server' };
+        if (isDiff(sWait, lWait)) diffs.waiting = { label: 'Wartezeiten', local: 'Geändert', server: 'Server' };
+
+        return Object.keys(diffs).length > 0 ? diffs : null;
+    };
+
+    const handleMerge = () => {
+        if (!conflictState) return;
+        const { server, local } = conflictState;
+
+        let mergedShift = {
+            ...server.shift,
+            energy1_start: server.shift.energy_18_start,
+            energy1_end: server.shift.energy_18_end,
+            energy2_start: server.shift.energy_28_start,
+            energy2_end: server.shift.energy_28_end,
+            notes: server.shift.comments,
+            flags: safeJSONParse(server.shift.status_json || '{}')
+        };
+        let mergedSegments = (server.segments || []).map(s => ({
+            ...s, tfz: s.loco_nr, from_code: s.from_station, to_code: s.to_station
+        }));
+        let mergedGuest = safeJSONParse(server.shift.guest_rides);
+        let mergedWaiting = safeJSONParse(server.shift.waiting_times);
+
+        // Overwrite based on Selection
+        if (selection.times === 'local') {
+            mergedShift.start_time = local.shift.start_time;
+            mergedShift.end_time = local.shift.end_time;
+            mergedShift.pause = local.shift.pause;
+        }
+        if (selection.counters === 'local') {
+            mergedShift.km_start = local.shift.km_start;
+            mergedShift.km_end = local.shift.km_end;
+            mergedShift.energy1_start = local.shift.energy1_start;
+            mergedShift.energy1_end = local.shift.energy1_end;
+            mergedShift.energy2_start = local.shift.energy2_start;
+            mergedShift.energy2_end = local.shift.energy2_end;
+        }
+        if (selection.status === 'local') mergedShift.flags = local.shift.flags;
+        if (selection.notes === 'local') mergedShift.notes = local.shift.notes;
+        if (selection.segments === 'local') mergedSegments = local.segments;
+        if (selection.guest === 'local') mergedGuest = local.guestRides || safeJSONParse(local.shift.guest_rides);
+        if (selection.waiting === 'local') mergedWaiting = local.waitingTimes || safeJSONParse(local.shift.waiting_times);
+
+        // Apply
+        setShift(mergedShift);
+        setSegments(mergedSegments);
+        setGuestRides(mergedGuest);
+        setWaitingTimes(mergedWaiting);
+
+        setHasDraft(true);
+        setConflictState(null);
+    };
+
     const loadShift = async (selectedDate) => {
         setLoading(true);
         setHasDraft(false);
@@ -124,6 +234,26 @@ const LokLogEditor = () => {
                 const data = await res.json();
 
                 if (data.shift) {
+                    const localDraftStr = localStorage.getItem(draftKey);
+                    if (localDraftStr) {
+                        try {
+                            const localDraft = JSON.parse(localDraftStr);
+                            // Check conflicts if dates match
+                            if (localDraft.date === selectedDate) {
+                                const diffs = detectConflicts(data, localDraft);
+                                if (diffs) {
+                                    // Init selection with 'local' for all conflicts
+                                    const initialSelection = Object.keys(diffs).reduce((acc, key) => ({ ...acc, [key]: 'local' }), {});
+                                    setSelection(initialSelection);
+                                    setConflictState({ server: data, local: localDraft, diffs });
+                                    setLoading(false);
+                                    return; // STOP HERE -> User decides
+                                }
+                            }
+                        } catch (e) { console.warn("Conflict check failed", e); }
+                    }
+
+                    // No conflicts? Apply Server
                     setShift({
                         ...data.shift,
                         energy1_start: data.shift.energy_18_start,
@@ -950,6 +1080,78 @@ const LokLogEditor = () => {
 
                     {/* RIGHT COLUMN: Segments */}
                     <div className="lg:col-span-8 flex flex-col gap-6">
+
+                        {/* CONFLICT RESOLUTION MODAL */}
+                        {conflictState && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
+                                <div className="bg-card border border-gray-700 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+
+                                    {/* Header */}
+                                    <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900/50 rounded-t-2xl">
+                                        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                            <Zap className="text-yellow-500" /> Synchronisations-Konflikt
+                                        </h2>
+                                        <span className="text-xs text-gray-500">Bitte wähle für jeden Bereich die korrekte Version.</span>
+                                    </div>
+
+                                    {/* Body (Scrollable) */}
+                                    <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                                        {Object.entries(conflictState.diffs).map(([key, diff]) => (
+                                            <div key={key} className="bg-dark p-4 rounded-xl border border-gray-800 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                                                <div className="font-bold text-gray-300 md:col-span-3 pb-2 border-b border-gray-700/50 mb-2">
+                                                    {diff.label}
+                                                </div>
+
+                                                {/* Local Option */}
+                                                <label className={`cursor-pointer p-3 rounded-lg border transition relative ${selection[key] === 'local' ? 'bg-blue-900/20 border-blue-500' : 'border-gray-700 hover:bg-gray-800'}`}>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <input type="radio" name={key} checked={selection[key] === 'local'} onChange={() => setSelection(s => ({ ...s, [key]: 'local' }))} />
+                                                        <span className="text-xs font-bold text-blue-400 uppercase">Lokal (Gerät)</span>
+                                                    </div>
+                                                    <div className="text-sm text-gray-300 truncate">{diff.local}</div>
+                                                </label>
+
+                                                {/* Server Option */}
+                                                <label className={`cursor-pointer p-3 rounded-lg border transition relative ${selection[key] === 'server' ? 'bg-purple-900/20 border-purple-500' : 'border-gray-700 hover:bg-gray-800'}`}>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <input type="radio" name={key} checked={selection[key] === 'server'} onChange={() => setSelection(s => ({ ...s, [key]: 'server' }))} />
+                                                        <span className="text-xs font-bold text-purple-400 uppercase">Cloud (Server)</span>
+                                                    </div>
+                                                    <div className="text-sm text-gray-300 truncate">{diff.server}</div>
+                                                </label>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Footer (Actions) */}
+                                    <div className="p-6 border-t border-gray-800 bg-gray-900/50 rounded-b-2xl space-y-4">
+
+                                        {/* Bulk Actions */}
+                                        <div className="flex justify-between gap-4 text-xs">
+                                            <button
+                                                onClick={() => setSelection(Object.keys(conflictState.diffs).reduce((acc, k) => ({ ...acc, [k]: 'local' }), {}))}
+                                                className="text-blue-400 hover:text-blue-300 hover:underline"
+                                            >
+                                                Alles Lokal wählen
+                                            </button>
+                                            <button
+                                                onClick={() => setSelection(Object.keys(conflictState.diffs).reduce((acc, k) => ({ ...acc, [k]: 'server' }), {}))}
+                                                className="text-purple-400 hover:text-purple-300 hover:underline"
+                                            >
+                                                Alles Online wählen
+                                            </button>
+                                        </div>
+
+                                        <button
+                                            onClick={handleMerge}
+                                            className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl shadow-lg shadow-green-900/20 transition"
+                                        >
+                                            Auswahl übernehmen & Mischen
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Smart Router */}
                         <div className="bg-accent-blue/5 border border-accent-blue/20 p-4 rounded-2xl flex gap-2">
