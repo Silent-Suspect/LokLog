@@ -8,7 +8,18 @@ export async function onRequestGet(context) {
             return new Response('Unauthorized', { status: 401 });
         }
         const token = authHeader.split(' ')[1];
-        await verifyToken(token, { secretKey: context.env.CLERK_SECRET_KEY });
+
+        // Verify Token & Signature
+        const verifiedToken = await verifyToken(token, { secretKey: context.env.CLERK_SECRET_KEY });
+
+        // SECURITY CHECK: ADMIN ROLE
+        // Clerk usually passes metadata in snake_case inside the token payload
+        const role = verifiedToken.public_metadata?.role;
+
+        if (role !== 'admin') {
+            console.warn(`Access denied for user ${verifiedToken.sub}. Role: ${role}`);
+            return new Response("Forbidden: Admin Access Only", { status: 403 });
+        }
 
         // Fetch Distinct Users
         const { results } = await context.env.DB.prepare(
@@ -16,6 +27,7 @@ export async function onRequestGet(context) {
         ).all();
 
         return Response.json(results);
+
     } catch (err) {
         return Response.json({ error: err.message }, { status: 500 });
     }
