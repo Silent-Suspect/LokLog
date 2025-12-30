@@ -79,12 +79,12 @@ const AdminDashboard = () => {
                             <select
                                 value={selectedUser}
                                 onChange={e => setSelectedUser(e.target.value)}
-                                className="bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-purple-500 transition"
+                                className="bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 outline-none"
                             >
-                                <option value="">-- User wählen --</option>
+                                <option value="">-- Fahrer wählen --</option>
                                 {users.map(u => (
                                     <option key={u.user_id} value={u.user_id}>
-                                        {u.user_id} {/* Zeigt vorerst ID an, da DB keine Namen hat */}
+                                        {u.lastName}, {u.firstName} ({u.email})
                                     </option>
                                 ))}
                             </select>
