@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-react';
-import { Save, FileDown, Plus, Trash2, TrainFront, Clock, Zap, CheckSquare, Calendar, ArrowRight, Wifi, WifiOff } from 'lucide-react';
+import { Save, FileDown, Plus, Trash2, TrainFront, Clock, Zap, CheckSquare, Calendar, ArrowRight, Wifi, WifiOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
@@ -228,6 +228,13 @@ const LokLogEditor = () => {
     };
     const removeWaitingTime = (index) => {
         setWaitingTimes(prev => prev.filter((_, i) => i !== index));
+    };
+
+    // Date Navigation Helper
+    const changeDate = (offset) => {
+        const currentDate = new Date(date);
+        currentDate.setDate(currentDate.getDate() + offset);
+        setDate(currentDate.toISOString().split('T')[0]);
     };
 
     // Auto-Pause Suggestion
@@ -733,14 +740,32 @@ const LokLogEditor = () => {
                     </div>
                     <p className="text-gray-400">Erfasse deine Schicht für den {new Date(date).toLocaleDateString('de-DE')}</p>
                 </div>
-                <div className="flex items-center gap-2 bg-dark p-1 rounded-lg border border-gray-700">
-                    <Calendar size={18} className="text-gray-400 ml-2" />
-                    <input
-                        type="date"
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)}
-                        className="bg-transparent text-white p-2 outline-none font-mono"
-                    />
+                <div className="flex items-center gap-1 bg-dark p-1 rounded-lg border border-gray-700">
+                    <button
+                        onClick={() => changeDate(-1)}
+                        className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"
+                        title="Vorheriger Tag"
+                    >
+                        <ChevronLeft size={18} />
+                    </button>
+
+                    <div className="flex items-center gap-2 px-2 border-x border-gray-700/50">
+                        <Calendar size={16} className="text-gray-500" />
+                        <input
+                            type="date"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                            className="bg-transparent text-white py-1 outline-none font-mono text-sm uppercase"
+                        />
+                    </div>
+
+                    <button
+                        onClick={() => changeDate(1)}
+                        className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"
+                        title="Nächster Tag"
+                    >
+                        <ChevronRight size={18} />
+                    </button>
                 </div>
             </div>
 
