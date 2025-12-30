@@ -13,7 +13,7 @@ const LokLogEditor = () => {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [hasDraft, setHasDraft] = useState(false);
-    const [hasDraft, setHasDraft] = useState(false);
+
     const [isOnline, setIsOnline] = useState(navigator.onLine);
 
     // Conflict Resolution State
