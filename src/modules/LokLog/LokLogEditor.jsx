@@ -57,16 +57,22 @@ const LokLogEditor = () => {
     }, [date, isOnline]); // Reload when date changes OR connection comes back
 
     // Auto-Save Draft Hook (DATE SPECIFIC)
+    // Auto-Save Draft Hook (DATE SPECIFIC)
     useEffect(() => {
         const timeoutId = setTimeout(() => {
             // Only save if there is some data
             if (shift.start_time || shift.km_start || Object.keys(shift.flags).length > 0 || segments.length > 0) {
                 const draftData = {
                     date,
-                    shift,
+                    shift: {
+                        ...shift,
+                        // FIX: Explicitly overwrite potentially stringified fields with current arrays
+                        guest_rides: guestRides,
+                        waiting_times: waitingTimes
+                    },
                     segments,
-                    guestRides,
-                    waitingTimes,
+                    guestRides, // Backup array
+                    waitingTimes, // Backup array
                     timestamp: new Date().getTime()
                 };
                 localStorage.setItem(`loklog_draft_${date}`, JSON.stringify(draftData));
@@ -159,14 +165,26 @@ const LokLogEditor = () => {
     const loadFromLocal = (key, expectedDate) => {
         const savedDraft = localStorage.getItem(key);
         if (savedDraft) {
-            const parsed = JSON.parse(savedDraft);
-            if (parsed.date === expectedDate) {
-                setShift(parsed.shift);
-                setSegments(parsed.segments);
-                setGuestRides(parsed.shift.guest_rides || parsed.guestRides || []);
-                setWaitingTimes(parsed.shift.waiting_times || parsed.waitingTimes || []);
-                setHasDraft(true);
-                return true;
+            try {
+                const parsed = JSON.parse(savedDraft);
+                if (parsed.date === expectedDate) {
+                    setShift(parsed.shift);
+                    setSegments(parsed.segments || []);
+
+                    // FIX: Prioritize the explicit array, fallback to shift prop, and ALWAYS SAFE PARSE
+                    // This ensures we never set a string into the state
+                    const safeGuest = parsed.guestRides || parsed.shift.guest_rides;
+                    const safeWait = parsed.waitingTimes || parsed.shift.waiting_times;
+
+                    setGuestRides(safeJSONParse(safeGuest));
+                    setWaitingTimes(safeJSONParse(safeWait));
+
+                    setHasDraft(true);
+                    return true;
+                }
+            } catch (e) {
+                console.warn("Corrupt local draft found", e);
+                return false;
             }
         }
         return false;
