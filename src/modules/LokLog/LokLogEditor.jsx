@@ -945,22 +945,7 @@ const LokLogEditor = () => {
 
                         </div>
 
-                        {/* RESET MODULE */}
-                        <div className="bg-red-900/10 p-5 rounded-2xl border border-red-900/30 space-y-4">
-                            <h3 className="font-bold text-red-400 flex items-center gap-2">
-                                <Trash2 size={16} /> Tag zurücksetzen
-                            </h3>
-                            <p className="text-xs text-gray-500">
-                                Setzt alle Eingaben für diesen Tag zurück. Beim Speichern wird der Eintrag aus der Datenbank entfernt.
-                            </p>
-                            <button
-                                onClick={handleResetDay}
-                                className="w-full py-2 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/50 rounded-lg transition text-sm font-bold flex items-center justify-center gap-2"
-                            >
-                                <Trash2 size={16} />
-                                Tag leeren
-                            </button>
-                        </div>
+
                     </div>
 
                     {/* RIGHT COLUMN: Segments */}
@@ -1118,48 +1103,69 @@ const LokLogEditor = () => {
                         </div>
                     </div>
                 </div>
-            )}
 
-            {/* Sticky Footer Actions */}
-            <div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex justify-end items-center gap-4">
-
-                {/* TOAST NOTIFICATION */}
-                {toast.visible && (
-                    <div className={`fixed bottom - 24 right - 4 z - 50 px - 6 py - 3 rounded - xl border shadow - 2xl animate -in slide -in -from - bottom - 5 fade -in duration - 300 font - bold flex items - center gap - 3
-                        ${toast.type === 'error' ? 'bg-red-900/90 border-red-500 text-white' : 'bg-gray-900/90 border-green-500 text-white'}
-            `}>
-                        {toast.type === 'error' ? (
-                            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                        ) : (
-                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                        )}
-                        {toast.message}
-                    </div>
-                )}
-
-
-                {hasDraft && (
-                    <span className="text-xs text-green-500 font-mono flex items-center gap-1 animate-pulse mr-auto md:mr-0">
-                        <CheckSquare size={14} /> Draft saved locally
-                    </span>
-                )}
-                <button
-                    onClick={handleExport}
-                    disabled={saving}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold bg-green-900/20 text-green-400 border border-green-900/50 hover:bg-green-900/30 transition"
-                >
-                    <FileDown size={20} /> Export Excel
-                </button>
-                <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="flex items-center gap-2 px-8 py-3 rounded-xl font-bold bg-accent-blue text-white shadow-lg shadow-blue-900/20 hover:bg-blue-600 transition"
-                >
-                    <Save size={20} />
-                    {saving ? 'Saving...' : 'Save Report'}
-                </button>
+                    {/* FULL WIDTH: RESET MODULE */}
+            <div className="col-span-1 lg:col-span-12 pt-8 border-t border-gray-800 mt-4">
+                <div className="bg-red-900/10 p-5 rounded-2xl border border-red-900/30 space-y-4 max-w-md mx-auto lg:mx-0">
+                    <h3 className="font-bold text-red-400 flex items-center gap-2">
+                        <Trash2 size={16} /> Tag zurücksetzen
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                        Setzt alle Eingaben für diesen Tag zurück. Beim Speichern wird der Eintrag aus der Datenbank entfernt.
+                    </p>
+                    <button
+                        onClick={handleResetDay}
+                        className="w-full py-2 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/50 rounded-lg transition text-sm font-bold flex items-center justify-center gap-2"
+                    >
+                        <Trash2 size={16} />
+                        Tag leeren
+                    </button>
+                </div>
             </div>
         </div>
+    )
+}
+
+{/* Sticky Footer Actions */ }
+<div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex justify-end items-center gap-4">
+
+    {/* TOAST NOTIFICATION */}
+    {toast.visible && (
+        <div className={`fixed bottom - 24 right - 4 z - 50 px - 6 py - 3 rounded - xl border shadow - 2xl animate -in slide -in -from - bottom - 5 fade -in duration - 300 font - bold flex items - center gap - 3
+                        ${toast.type === 'error' ? 'bg-red-900/90 border-red-500 text-white' : 'bg-gray-900/90 border-green-500 text-white'}
+            `}>
+            {toast.type === 'error' ? (
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            ) : (
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            )}
+            {toast.message}
+        </div>
+    )}
+
+
+    {hasDraft && (
+        <span className="text-xs text-green-500 font-mono flex items-center gap-1 animate-pulse mr-auto md:mr-0">
+            <CheckSquare size={14} /> Draft saved locally
+        </span>
+    )}
+    <button
+        onClick={handleExport}
+        disabled={saving}
+        className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold bg-green-900/20 text-green-400 border border-green-900/50 hover:bg-green-900/30 transition"
+    >
+        <FileDown size={20} /> Export Excel
+    </button>
+    <button
+        onClick={handleSave}
+        disabled={saving}
+        className="flex items-center gap-2 px-8 py-3 rounded-xl font-bold bg-accent-blue text-white shadow-lg shadow-blue-900/20 hover:bg-blue-600 transition"
+    >
+        <Save size={20} />
+        {saving ? 'Saving...' : 'Save Report'}
+    </button>
+</div>
+        </div >
     );
 };
 
