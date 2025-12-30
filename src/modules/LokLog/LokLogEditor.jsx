@@ -1075,6 +1075,7 @@ const LokLogEditor = () => {
                                             </div>
                                             <div className="flex gap-2">
                                                 <input placeholder="Ort / Signal" value={wait.loc} onChange={e => updateWaitingTime(i, 'loc', e.target.value)} className="w-1/2 bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
+                                                ```
                                                 <input placeholder="Grund" value={wait.reason} onChange={e => updateWaitingTime(i, 'reason', e.target.value)} className="w-1/2 bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
                                             </div>
                                         </div>
@@ -1121,52 +1122,49 @@ const LokLogEditor = () => {
                         Tag leeren
                     </button>
                 </div>
-            </div>
-        </div>
-    )
-}
+            )}
 
-{/* Sticky Footer Actions */ }
-<div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex justify-end items-center gap-4">
+                {/* Sticky Footer Actions */}
+                <div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex justify-end items-center gap-4">
 
-    {/* TOAST NOTIFICATION */}
-    {toast.visible && (
-        <div className={`fixed bottom - 24 right - 4 z - 50 px - 6 py - 3 rounded - xl border shadow - 2xl animate -in slide -in -from - bottom - 5 fade -in duration - 300 font - bold flex items - center gap - 3
+                    {/* TOAST NOTIFICATION */}
+                    {toast.visible && (
+                        <div className={`fixed bottom-24 right-4 z-50 px-6 py-3 rounded-xl border shadow-2xl animate-in slide-in-from-bottom-5 fade-in duration-300 font-bold flex items-center gap-3
                         ${toast.type === 'error' ? 'bg-red-900/90 border-red-500 text-white' : 'bg-gray-900/90 border-green-500 text-white'}
             `}>
-            {toast.type === 'error' ? (
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            ) : (
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            )}
-            {toast.message}
-        </div>
-    )}
+                            {toast.type === 'error' ? (
+                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                            ) : (
+                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                            )}
+                            {toast.message}
+                        </div>
+                    )}
 
 
-    {hasDraft && (
-        <span className="text-xs text-green-500 font-mono flex items-center gap-1 animate-pulse mr-auto md:mr-0">
-            <CheckSquare size={14} /> Draft saved locally
-        </span>
-    )}
-    <button
-        onClick={handleExport}
-        disabled={saving}
-        className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold bg-green-900/20 text-green-400 border border-green-900/50 hover:bg-green-900/30 transition"
-    >
-        <FileDown size={20} /> Export Excel
-    </button>
-    <button
-        onClick={handleSave}
-        disabled={saving}
-        className="flex items-center gap-2 px-8 py-3 rounded-xl font-bold bg-accent-blue text-white shadow-lg shadow-blue-900/20 hover:bg-blue-600 transition"
-    >
-        <Save size={20} />
-        {saving ? 'Saving...' : 'Save Report'}
-    </button>
-</div>
-        </div >
-    );
+                    {hasDraft && (
+                        <span className="text-xs text-green-500 font-mono flex items-center gap-1 animate-pulse mr-auto md:mr-0">
+                            <CheckSquare size={14} /> Draft saved locally
+                        </span>
+                    )}
+                    <button
+                        onClick={handleExport}
+                        disabled={saving}
+                        className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold bg-green-900/20 text-green-400 border border-green-900/50 hover:bg-green-900/30 transition"
+                    >
+                        <FileDown size={20} /> Export Excel
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="flex items-center gap-2 px-8 py-3 rounded-xl font-bold bg-accent-blue text-white shadow-lg shadow-blue-900/20 hover:bg-blue-600 transition"
+                    >
+                        <Save size={20} />
+                        {saving ? 'Saving...' : 'Save Report'}
+                    </button>
+                </div>
+            </div>
+            );
 };
 
-export default LokLogEditor;
+            export default LokLogEditor;
