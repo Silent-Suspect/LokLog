@@ -4,7 +4,8 @@ import { Trash2, AlertTriangle, ShieldAlert, Search } from 'lucide-react';
 import StationManager from './StationManager';
 
 const AdminDashboard = () => {
-    const { user, getToken } = useAuth(); // Need getToken for API calls
+    const { user } = useUser();
+    const { getToken } = useAuth(); // Need getToken for API calls
 
     // Monitor State
     const [users, setUsers] = useState([]);
