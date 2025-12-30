@@ -187,6 +187,25 @@ const LokLogEditor = () => {
         setWaitingTimes([]);
     };
 
+    const isShiftEmpty = () => {
+        // Check if all main fields are empty/default
+        const flagsEmpty = Object.keys(shift.flags).length === 0; // resetShift sets flags to {}
+        return !shift.start_time && !shift.end_time &&
+            !shift.km_start && !shift.km_end &&
+            segments.length === 0 &&
+            guestRides.length === 0 &&
+            waitingTimes.length === 0 &&
+            !shift.notes && flagsEmpty;
+    };
+
+    const handleResetDay = () => {
+        const confirmMsg = `Dies löscht den Fahrbericht für ${new Date(date).toLocaleDateString('de-DE')}! Fortfahren?`;
+        if (window.confirm(confirmMsg)) {
+            resetShift();
+            showToast('Tag zurückgesetzt. Speichern zum Löschen.', 'info');
+        }
+    };
+
     // Calculations
     const calculateDuration = () => {
         if (!shift.start_time || !shift.end_time) return 0;
@@ -322,42 +341,51 @@ const LokLogEditor = () => {
         // 3. Online: Try Sync
         try {
             const token = await getToken();
-            const res = await fetch('/api/shifts', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    shift: {
-                        ...shift,
-                        date,
-                        energy_18_start: shift.energy1_start,
-                        energy_18_end: shift.energy1_end,
-                        energy_28_start: shift.energy2_start,
-                        energy_28_end: shift.energy2_end,
-                        guest_rides: guestRides,
-                        waiting_times: waitingTimes
+
+            // CHECK: IS EMPTY? -> DELETE
+            if (isShiftEmpty()) {
+                const res = await fetch(`/api/shifts?date=${date}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error('Delete failed');
+
+                // Clear Draft & State ID
+                localStorage.removeItem(draftKey);
+                setHasDraft(false);
+                setShift(s => ({ ...s, id: null })); // Detach ID
+                showToast('🗑️ Tag erfolgreich gelöscht!', 'success');
+            }
+            else {
+                const res = await fetch('/api/shifts', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
                     },
-                    segments
-                })
-            });
-            if (!res.ok) throw new Error('Save failed');
-            const data = await res.json();
-            setShift(s => ({ ...s, id: data.id }));
+                    body: JSON.stringify({
+                        shift: {
+                            ...shift,
+                            date,
+                            energy_18_start: shift.energy1_start,
+                            energy_18_end: shift.energy1_end,
+                            energy_28_start: shift.energy2_start,
+                            energy_28_end: shift.energy2_end,
+                            guest_rides: guestRides,
+                            waiting_times: waitingTimes
+                        },
+                        segments
+                    })
+                });
+                if (!res.ok) throw new Error('Save failed');
+                const data = await res.json();
+                setShift(s => ({ ...s, id: data.id }));
 
-            // Note: We keeping the draft as a backup even after sync, 
-            // or we could clear it?
-            // "Clear Draft: Update the handleSave function. Upon a successful API response... remove... localStorage"
-            // The user requested previously to remove it.
-            // But now specifically for "Offline First", keeping it as "last known good" is sometimes nice.
-            // However, following instructions:
-            // "Updated handleSave... if NO (offline): show toast... if YES (online): proceed"
-            // The previous request #339 cleared it.
-            // Let's clear it to be clean.
-            setHasDraft(false);
+                // Clear draft after successful sync
+                setHasDraft(false);
 
-            showToast('✅ Synced to Cloud!', 'success');
+                showToast('✅ Synced to Cloud!', 'success');
+            }
         } catch (err) {
             console.error(err);
             showToast('❌ Cloud Sync failed. Saved locally.', 'error');
@@ -897,6 +925,23 @@ const LokLogEditor = () => {
                                 </div>
                             )}
 
+                        </div>
+
+                        {/* RESET MODULE */}
+                        <div className="bg-red-900/10 p-5 rounded-2xl border border-red-900/30 space-y-4">
+                            <h3 className="font-bold text-red-400 flex items-center gap-2">
+                                <Trash2 size={16} /> Tag zurücksetzen
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                                Setzt alle Eingaben für diesen Tag zurück. Beim Speichern wird der Eintrag aus der Datenbank entfernt.
+                            </p>
+                            <button
+                                onClick={handleResetDay}
+                                className="w-full py-2 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/50 rounded-lg transition text-sm font-bold flex items-center justify-center gap-2"
+                            >
+                                <Trash2 size={16} />
+                                Tag leeren
+                            </button>
                         </div>
                     </div>
 

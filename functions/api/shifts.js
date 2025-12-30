@@ -117,3 +117,44 @@ export async function onRequestPut(context) {
         return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
     }
 }
+
+// DELETE: Remove Shift for Date
+export async function onRequestDelete(context) {
+    try {
+        const { searchParams } = new URL(context.request.url);
+        const date = searchParams.get('date');
+
+        if (!date) return new Response("Missing date parameter", { status: 400, headers: corsHeaders });
+
+        // Auth Check
+        const authHeader = context.request.headers.get('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+        }
+        const token = authHeader.split(' ')[1];
+        const verifiedToken = await verifyToken(token, { secretKey: context.env.CLERK_SECRET_KEY });
+        const userId = verifiedToken.sub;
+
+        // 1. Find Shift ID
+        const shift = await context.env.DB.prepare(
+            "SELECT id FROM shifts WHERE user_id = ? AND date = ?"
+        ).bind(userId, date).first();
+
+        if (!shift) {
+            return Response.json({ message: "Nothing to delete" }, { headers: corsHeaders });
+        }
+
+        // 2. Delete Segments & Shift
+        const batch = [
+            context.env.DB.prepare("DELETE FROM segments WHERE shift_id = ?").bind(shift.id),
+            context.env.DB.prepare("DELETE FROM shifts WHERE id = ?").bind(shift.id)
+        ];
+
+        await context.env.DB.batch(batch);
+
+        return Response.json({ success: true, deleted: true }, { headers: corsHeaders });
+
+    } catch (err) {
+        return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+    }
+}
