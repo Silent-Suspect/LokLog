@@ -128,7 +128,7 @@ const AdminDashboard = () => {
                                             </td>
                                             <td className="px-4 py-3">
                                                 {/* Da Segmente separat sind, zeigen wir hier nur grobe Infos oder KM */}
-                                                {s.km_start} -> {s.km_end} km
+                                                {s.km_start} &rarr; {s.km_end} km
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 {/* Button to view Details could go here */}
