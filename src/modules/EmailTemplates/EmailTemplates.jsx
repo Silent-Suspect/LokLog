@@ -168,7 +168,7 @@ const EmailTemplates = () => {
 
         let finalBody = (profile.templates[selectedTemplate] || DEFAULT_TEMPLATES[selectedTemplate])
             .replace('[Briefkopf]', header)
-            .replace('[Begrüßung]', `${timeGreeting} ${selectedTemplate === 'times' ? 'Dienstzeiten' : 'Leitstelle'}`)
+            .replace('[Begrüßung]', timeGreeting)
             .replace('[Vorname]', profile.firstName)
             .replace('[Nachname]', profile.lastName)
             // Legacy Fields (Start/End)
