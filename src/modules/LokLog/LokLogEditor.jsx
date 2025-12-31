@@ -710,11 +710,11 @@ const LokLogEditor = () => {
             setNum('I28', shift.energy2_end);
 
             // Flags
-            if (shift.flags['Normaldienst']) ws.getCell('F7').value = 'X';
-            if (shift.flags['Bereitschaft']) ws.getCell('I7').value = 'X';
+            if (shift.flags['Normaldienst']) ws.getCell('I7').value = 'X';
+            if (shift.flags['Bereitschaft']) ws.getCell('L7').value = 'X';
             if (shift.flags['Streckenkunde / EW / BR']) ws.getCell('B7').value = 'X';
             if (shift.flags['Ausfall vor DB']) ws.getCell('D7').value = 'X';
-            if (shift.flags['Ausfall nach DB']) ws.getCell('L7').value = 'X';
+            if (shift.flags['Ausfall nach DB']) ws.getCell('F7').value = 'X';
 
             if (shift.flags['Streckenkunde / EW / BR']) ws.getCell('B8').value = shift.flags.param_streckenkunde;
             if (shift.flags['Dienst verschoben']) ws.getCell('F8').value = shift.flags.param_dienst_verschoben;
