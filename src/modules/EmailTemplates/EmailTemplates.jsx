@@ -183,8 +183,12 @@ const EmailTemplates = () => {
             .replace('[IST_ENDE]', fmt(templateData.actualEnd));
 
         // 6. Open Mail Client
-        // FIX: Force CRLF (\r\n) for line breaks, as some clients (1&1, Outlook) swallow simple \n
-        const bodyEncoded = encodeURIComponent(finalBody.replace(/\n/g, '\r\n'));
+        // FIX: Manual %0A Strategy for 1&1 App
+        // We split by newline, encode each line, and join with %0A explicitly.
+        const bodyEncoded = finalBody.split('\n')
+            .map(line => encodeURIComponent(line))
+            .join('%0A');
+
         window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${bodyEncoded}`;
     };
 
@@ -406,7 +410,7 @@ const EmailTemplates = () => {
 
                         {/* DEBUG VERSION INDICATOR */}
                         <div className="text-[10px] text-gray-600 text-center mt-6 font-mono border-t border-gray-800/50 pt-2">
-                            v1.5 (Mail-Fix: CRLF & Routing)
+                            v2.1 (Manual %0A Encoding)
                         </div>
                     </div>
                 </div>
