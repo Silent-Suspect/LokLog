@@ -10,7 +10,7 @@ const EmailTemplates = () => {
     const DEFAULT_TEMPLATES = {
         start: `[Briefkopf]\n\n[Begrüßung],\n\nhier mein heutiger Dienstbeginn:\n[ZEIT] Uhr in [ORT].\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
         end: `[Briefkopf]\n\n[Begrüßung],\n\nhier mein heutiges Dienstende:\n[ZEIT] Uhr in [ORT].\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
-        times: `[Briefkopf]\n\n[Begrüßung],\n\nhier meine heutigen Dienstzeiten:\nStart: [ZEIT]\nEnde: [ENDE]\nPause: [PAUSE] min.\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`
+        times: `[Briefkopf]\n\n[Begrüßung],\n\nhier meine heutigen Dienstzeiten:\n\nDienstbeginn Plan: [PLAN_START] Uhr\nDienstbeginn Ist: [IST_START] Uhr\n\nAbfahrt: [ABFAHRT] Uhr\nAnkunft: [ANKUNFT] Uhr\n\nDienstende Plan: [PLAN_ENDE] Uhr\nDienstende Ist: [IST_ENDE] Uhr\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`
     };
 
     // User Profile & Templates State
@@ -87,7 +87,13 @@ const EmailTemplates = () => {
         time: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
         location: 'MKP',
         endTime: '',
-        pause: '0'
+        pause: '0',
+        planStart: '',
+        actualStart: '',
+        departure: '',
+        arrival: '',
+        planEnd: '',
+        actualEnd: ''
     });
     const [includeHeader, setIncludeHeader] = useState(true);
 
@@ -124,6 +130,13 @@ const EmailTemplates = () => {
         text = text.replaceAll('[ORT]', templateData.location);
         text = text.replaceAll('[ENDE]', (templateData.endTime || '').replace(':', '.'));
         text = text.replaceAll('[PAUSE]', templateData.pause || '0');
+
+        text = text.replaceAll('[PLAN_START]', templateData.planStart || '--:--');
+        text = text.replaceAll('[IST_START]', templateData.actualStart || '--:--');
+        text = text.replaceAll('[ABFAHRT]', templateData.departure || '--:--');
+        text = text.replaceAll('[ANKUNFT]', templateData.arrival || '--:--');
+        text = text.replaceAll('[PLAN_ENDE]', templateData.planEnd || '--:--');
+        text = text.replaceAll('[IST_ENDE]', templateData.actualEnd || '--:--');
 
         return text;
     };
@@ -304,29 +317,57 @@ const EmailTemplates = () => {
                         </h2>
 
                         <div className="space-y-3">
-                            <div>
-                                <label className="text-xs text-gray-500">Uhrzeit</label>
-                                <input type="time" value={templateData.time} onChange={e => setTemplateData({ ...templateData, time: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
-                            </div>
 
+                            {/* TIMES TEMPLATE INPUTS (Detailed Grid) */}
                             {selectedTemplate === 'times' && (
-                                <>
-                                    <div>
-                                        <label className="text-xs text-gray-500">Ende Uhrzeit</label>
-                                        <input type="time" value={templateData.endTime} onChange={e => setTemplateData({ ...templateData, endTime: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                                    <div className="grid grid-cols-2 gap-4 p-3 bg-dark/50 rounded-xl border border-gray-700">
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase font-bold">Dienstbeginn Plan</label>
+                                            <input type="time" value={templateData.planStart} onChange={e => setTemplateData({ ...templateData, planStart: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-accent-blue uppercase font-bold">Dienstbeginn Ist</label>
+                                            <input type="time" value={templateData.actualStart} onChange={e => setTemplateData({ ...templateData, actualStart: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white focus:border-accent-blue" />
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="text-xs text-gray-500">Pause (Min)</label>
-                                        <input type="number" value={templateData.pause} onChange={e => setTemplateData({ ...templateData, pause: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+
+                                    <div className="grid grid-cols-2 gap-4 p-3 bg-dark/50 rounded-xl border border-gray-700">
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase font-bold">Abfahrt</label>
+                                            <input type="time" value={templateData.departure} onChange={e => setTemplateData({ ...templateData, departure: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase font-bold">Ankunft</label>
+                                            <input type="time" value={templateData.arrival} onChange={e => setTemplateData({ ...templateData, arrival: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                        </div>
                                     </div>
-                                </>
+
+                                    <div className="grid grid-cols-2 gap-4 p-3 bg-dark/50 rounded-xl border border-gray-700">
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase font-bold">Dienstende Plan</label>
+                                            <input type="time" value={templateData.planEnd} onChange={e => setTemplateData({ ...templateData, planEnd: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-accent-blue uppercase font-bold">Dienstende Ist</label>
+                                            <input type="time" value={templateData.actualEnd} onChange={e => setTemplateData({ ...templateData, actualEnd: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white focus:border-accent-blue" />
+                                        </div>
+                                    </div>
+                                </div>
                             )}
 
+                            {/* STANDARD INPUTS (Start/End only) */}
                             {selectedTemplate !== 'times' && (
-                                <div>
-                                    <label className="text-xs text-gray-500">Ort / Kürzel</label>
-                                    <input type="text" value={templateData.location} onChange={e => setTemplateData({ ...templateData, location: e.target.value.toUpperCase() })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
-                                </div>
+                                <>
+                                    <div>
+                                        <label className="text-xs text-gray-500">Uhrzeit</label>
+                                        <input type="time" value={templateData.time} onChange={e => setTemplateData({ ...templateData, time: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-gray-500">Ort / Kürzel</label>
+                                        <input type="text" value={templateData.location} onChange={e => setTemplateData({ ...templateData, location: e.target.value.toUpperCase() })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                    </div>
+                                </>
                             )}
 
                             <div className="flex items-center gap-2 pt-2">
