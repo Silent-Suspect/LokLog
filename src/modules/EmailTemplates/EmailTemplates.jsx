@@ -183,7 +183,9 @@ const EmailTemplates = () => {
             .replace('[IST_ENDE]', fmt(templateData.actualEnd));
 
         // 6. Open Mail Client
-        window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(finalBody)}`;
+        // FIX: Force CRLF (\r\n) for line breaks, as some clients (1&1, Outlook) swallow simple \n
+        const bodyEncoded = encodeURIComponent(finalBody.replace(/\n/g, '\r\n'));
+        window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${bodyEncoded}`;
     };
 
     return (
