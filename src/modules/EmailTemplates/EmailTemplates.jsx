@@ -150,19 +150,25 @@ const EmailTemplates = () => {
         // 2. Format Helper (HH:MM -> HH.MM)
         const fmt = (t) => t ? t.replace(':', '.') : '--.--';
 
-        // 3. Prepare Subject (NO DATE)
+        // 3. Subject (NO DATE)
         const subject = selectedTemplate === 'start' ? 'Dienstbeginn' :
             selectedTemplate === 'end' ? 'Dienstende' :
                 'Dienstzeiten';
 
-        // Build Header
+        // 4. Dynamic Greeting Logic
+        const h = new Date().getHours();
+        let timeGreeting = 'Guten Tag';
+        if (h >= 3 && h < 11) timeGreeting = 'Guten Morgen';
+        else if (h >= 18 || h < 3) timeGreeting = 'Guten Abend';
+
+        // 5. Build Header
         const header = includeHeader
-            ? `${profile.firstName} ${profile.lastName}\n${profile.street}\n${profile.zip} ${profile.city}\nTel: ${profile.landline}\nEmail: ${profile.senderEmail}`
+            ? `${profile.firstName} ${profile.lastName}\n${profile.street}\n${profile.zip} ${profile.city}\nTel: ${profile.landline}\nMobil: ${profile.mobile}\nEmail: ${profile.senderEmail}`
             : '';
 
         let finalBody = (profile.templates[selectedTemplate] || DEFAULT_TEMPLATES[selectedTemplate])
             .replace('[Briefkopf]', header)
-            .replace('[Begrüßung]', `Hallo ${selectedTemplate === 'times' ? 'Dienstzeiten' : 'Leitstelle'}`)
+            .replace('[Begrüßung]', `${timeGreeting} ${selectedTemplate === 'times' ? 'Dienstzeiten' : 'Leitstelle'}`)
             .replace('[Vorname]', profile.firstName)
             .replace('[Nachname]', profile.lastName)
             // Legacy Fields (Start/End)
@@ -176,7 +182,7 @@ const EmailTemplates = () => {
             .replace('[PLAN_ENDE]', fmt(templateData.planEnd))
             .replace('[IST_ENDE]', fmt(templateData.actualEnd));
 
-        // 4. Open Mail Client
+        // 6. Open Mail Client
         window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(finalBody)}`;
     };
 
