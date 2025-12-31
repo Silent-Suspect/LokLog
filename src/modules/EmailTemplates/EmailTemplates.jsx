@@ -403,6 +403,11 @@ const EmailTemplates = () => {
                         <button onClick={generateMailto} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-500 flex items-center justify-center gap-2 mt-4">
                             <Send size={18} /> Email App öffnen
                         </button>
+
+                        {/* DEBUG VERSION INDICATOR */}
+                        <div className="text-[10px] text-gray-600 text-center mt-6 font-mono border-t border-gray-800/50 pt-2">
+                            v1.5 (Mail-Fix: CRLF & Routing)
+                        </div>
                     </div>
                 </div>
             )}
