@@ -145,21 +145,39 @@ const EmailTemplates = () => {
 
     const generateMailto = () => {
         // 1. Determine Recipient
-        const recipientEmail = selectedTemplate === 'times' ? 'dienstzeiten@dispotf.de' : 'operations@dispotf.de';
+        const recipient = selectedTemplate === 'times' ? 'dienstzeiten@dispotf.de' : 'operations@dispotf.de';
 
-        // 2. Build Subject (with Date)
-        let subjectPrefix = "Nachricht";
-        if (selectedTemplate === 'start') subjectPrefix = "Dienstbeginn";
-        else if (selectedTemplate === 'end') subjectPrefix = "Dienstende";
-        else if (selectedTemplate === 'times') subjectPrefix = "Dienstzeiten";
+        // 2. Format Helper (HH:MM -> HH.MM)
+        const fmt = (t) => t ? t.replace(':', '.') : '--.--';
 
-        const subject = `${subjectPrefix} - ${new Date().toLocaleDateString('de-DE')}`;
+        // 3. Prepare Subject (NO DATE)
+        const subject = selectedTemplate === 'start' ? 'Dienstbeginn' :
+            selectedTemplate === 'end' ? 'Dienstende' :
+                'Dienstzeiten';
 
-        const rawTemplate = profile.templates[selectedTemplate] || DEFAULT_TEMPLATES[selectedTemplate];
-        const body = parseTemplate(rawTemplate);
+        // Build Header
+        const header = includeHeader
+            ? `${profile.firstName} ${profile.lastName}\n${profile.street}\n${profile.zip} ${profile.city}\nTel: ${profile.landline}\nEmail: ${profile.senderEmail}`
+            : '';
 
-        // 3. Link
-        window.location.href = `mailto:${recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        let finalBody = (profile.templates[selectedTemplate] || DEFAULT_TEMPLATES[selectedTemplate])
+            .replace('[Briefkopf]', header)
+            .replace('[Begrüßung]', `Hallo ${selectedTemplate === 'times' ? 'Dienstzeiten' : 'Leitstelle'}`)
+            .replace('[Vorname]', profile.firstName)
+            .replace('[Nachname]', profile.lastName)
+            // Legacy Fields (Start/End)
+            .replace('[ZEIT]', fmt(templateData.time))
+            .replace('[ORT]', templateData.location || '')
+            // New Fields (Times) - Apply Formatting!
+            .replace('[PLAN_START]', fmt(templateData.planStart))
+            .replace('[IST_START]', fmt(templateData.actualStart))
+            .replace('[ABFAHRT]', fmt(templateData.departure))
+            .replace('[ANKUNFT]', fmt(templateData.arrival))
+            .replace('[PLAN_ENDE]', fmt(templateData.planEnd))
+            .replace('[IST_ENDE]', fmt(templateData.actualEnd));
+
+        // 4. Open Mail Client
+        window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(finalBody)}`;
     };
 
     return (
