@@ -108,9 +108,13 @@ const LokLogEditor = () => {
         // Helper: Compare JSON string or Object
         const isDiff = (a, b) => JSON.stringify(a) !== JSON.stringify(b);
 
-        // 1. Times (Start, End, Pause)
-        if (sShift.start_time !== lShift.start_time || sShift.end_time !== lShift.end_time || sShift.pause != lShift.pause) {
-            diffs.times = { label: 'Dienstzeiten', local: `${lShift.start_time}-${lShift.end_time} (${lShift.pause}')`, server: `${sShift.start_time}-${sShift.end_time} (${sShift.pause}')` };
+        // 1. Times (Start, End) - IGNORING PAUSE due to auto-calc conflicts
+        if (sShift.start_time !== lShift.start_time || sShift.end_time !== lShift.end_time) {
+            diffs.times = {
+                label: 'Dienstzeiten',
+                local: `${lShift.start_time}-${lShift.end_time}`,
+                server: `${sShift.start_time}-${sShift.end_time}`
+            };
         }
 
         // 2. Counters (Km, Energy)
