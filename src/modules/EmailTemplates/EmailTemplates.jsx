@@ -96,6 +96,7 @@ const EmailTemplates = () => {
         actualEnd: ''
     });
     const [includeHeader, setIncludeHeader] = useState(true);
+    const [copied, setCopied] = useState(false);
 
     const getGreeting = () => {
         const h = new Date().getHours();
@@ -187,10 +188,18 @@ const EmailTemplates = () => {
             .replace('[IST_START]', fmt(templateData.actualStart))
             .replace('[ABFAHRT]', fmt(templateData.departure))
             .replace('[ANKUNFT]', fmt(templateData.arrival))
-            .replace('[PLAN_ENDE]', fmt(templateData.planEnd))
             .replace('[IST_ENDE]', fmt(templateData.actualEnd));
 
-        // 7. ENCODING STRATEGY: MANUAL SPLIT & JOIN (%0A)
+        // 7. FALLBACK: Copy to Clipboard (Plan B)
+        try {
+            navigator.clipboard.writeText(finalBody);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 3000); // Reset after 3s
+        } catch (err) {
+            console.warn("Clipboard access failed", err);
+        }
+
+        // 8. ENCODING STRATEGY: MANUAL SPLIT & JOIN (%0A)
         // Split by JS newline, encode parts, join with explicit %0A
         const bodyEncoded = finalBody.split('\n')
             .map(line => encodeURIComponent(line))
@@ -411,13 +420,20 @@ const EmailTemplates = () => {
                             </div>
                         </div>
 
-                        <button onClick={generateMailto} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-500 flex items-center justify-center gap-2 mt-4">
+                        {/* Feedback Message */}
+                        {copied && (
+                            <div className="animate-in fade-in slide-in-from-bottom-2 absolute bottom-20 left-0 right-0 mx-auto w-max bg-green-500/90 text-white px-4 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-2">
+                                <CheckCircle size={12} /> Text in Zwischenablage kopiert!
+                            </div>
+                        )}
+
+                        <button onClick={generateMailto} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-500 flex items-center justify-center gap-2 mt-4 relative">
                             <Send size={18} /> Email App öffnen
                         </button>
 
                         {/* DEBUG VERSION INDICATOR */}
                         <div className="text-[10px] text-gray-600 text-center mt-6 font-mono border-t border-gray-800/50 pt-2">
-                            v2.1 (Manual %0A Encoding)
+                            v2.2 (Auto-Copy Fallback)
                         </div>
                     </div>
                 </div>
