@@ -190,20 +190,21 @@ const EmailTemplates = () => {
             .replace('[ANKUNFT]', fmt(templateData.arrival))
             .replace('[IST_ENDE]', fmt(templateData.actualEnd));
 
-        // 7. FALLBACK: Copy to Clipboard (Plan B)
+        // 7. SAFETY NET: Copy to Clipboard
         try {
+            // Copy the CLEAN text (with normal newlines) to clipboard
             navigator.clipboard.writeText(finalBody);
             setCopied(true);
-            setTimeout(() => setCopied(false), 3000); // Reset after 3s
+            setTimeout(() => setCopied(false), 3000);
         } catch (err) {
-            console.warn("Clipboard access failed", err);
+            console.warn("Clipboard failed", err);
         }
 
-        // 8. ENCODING STRATEGY: MANUAL SPLIT & JOIN (%0A)
-        // Split by JS newline, encode parts, join with explicit %0A
+        // 8. ENCODING: Manual Split + %0D%0A Join
+        // We split by JS newline and rejoin with the explicit hex code for CRLF
         const bodyEncoded = finalBody.split('\n')
             .map(line => encodeURIComponent(line))
-            .join('%0A');
+            .join('%0D%0A');
 
         window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${bodyEncoded}`;
     };
@@ -422,8 +423,8 @@ const EmailTemplates = () => {
 
                         {/* Feedback Message */}
                         {copied && (
-                            <div className="animate-in fade-in slide-in-from-bottom-2 absolute bottom-20 left-0 right-0 mx-auto w-max bg-green-500/90 text-white px-4 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-2">
-                                <CheckCircle size={12} /> Text in Zwischenablage kopiert!
+                            <div className="animate-in fade-in slide-in-from-bottom-2 absolute bottom-24 left-0 right-0 mx-auto w-max bg-green-500/90 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg flex items-center gap-2 z-50">
+                                <CheckCircle size={14} /> Text kopiert! (Einfügen falls nötig)
                             </div>
                         )}
 
@@ -431,9 +432,9 @@ const EmailTemplates = () => {
                             <Send size={18} /> Email App öffnen
                         </button>
 
-                        {/* DEBUG VERSION INDICATOR */}
+                        {/* DEBUG VERSION */}
                         <div className="text-[10px] text-gray-600 text-center mt-6 font-mono border-t border-gray-800/50 pt-2">
-                            v2.2 (Auto-Copy Fallback)
+                            v2.3 (Clipboard + %0D%0A)
                         </div>
                     </div>
                 </div>
