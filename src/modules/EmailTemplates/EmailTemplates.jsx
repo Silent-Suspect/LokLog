@@ -144,37 +144,45 @@ const EmailTemplates = () => {
     };
 
     const generateMailto = () => {
-        // 1. Determine Recipient
+        // 1. Recipient
         const recipient = selectedTemplate === 'times' ? 'dienstzeiten@dispotf.de' : 'operations@dispotf.de';
 
-        // 2. Format Helper (HH:MM -> HH.MM)
+        // 2. Format Helper
         const fmt = (t) => t ? t.replace(':', '.') : '--.--';
 
-        // 3. Subject (NO DATE)
+        // 3. Subject
         const subject = selectedTemplate === 'start' ? 'Dienstbeginn' :
             selectedTemplate === 'end' ? 'Dienstende' :
                 'Dienstzeiten';
 
-        // 4. Dynamic Greeting Logic
+        // 4. Dynamic Greeting (Strict Range)
         const h = new Date().getHours();
         let timeGreeting = 'Guten Tag';
         if (h >= 3 && h < 11) timeGreeting = 'Guten Morgen';
         else if (h >= 18 || h < 3) timeGreeting = 'Guten Abend';
 
-        // 5. Build Header
-        const header = includeHeader
-            ? `${profile.firstName} ${profile.lastName}\n${profile.street}\n${profile.zip} ${profile.city}\n${profile.landline}\n${profile.mobile}\n${profile.senderEmail}`
-            : '';
+        // 5. Header (Corrected Variables & Labels)
+        let header = '';
+        if (includeHeader) {
+            header = `${profile.firstName} ${profile.lastName}`;
+            if (profile.street) header += `\n${profile.street}`;
+            if (profile.zip || profile.city) header += `\n${profile.zip} ${profile.city}`;
+            // Note: using landline from state, labeled as Tel
+            if (profile.landline) header += `\nTel: ${profile.landline}`;
+            if (profile.mobile) header += `\nMobil: ${profile.mobile}`;
+            if (profile.senderEmail) header += `\nEmail: ${profile.senderEmail}`;
+        }
 
+        // 6. Build Body Text
         let finalBody = (profile.templates[selectedTemplate] || DEFAULT_TEMPLATES[selectedTemplate])
             .replace('[Briefkopf]', header)
             .replace('[Begrüßung]', timeGreeting)
             .replace('[Vorname]', profile.firstName)
             .replace('[Nachname]', profile.lastName)
-            // Legacy Fields (Start/End)
+            // Legacy
             .replace('[ZEIT]', fmt(templateData.time))
             .replace('[ORT]', templateData.location || '')
-            // New Fields (Times) - Apply Formatting!
+            // Detailed Fields
             .replace('[PLAN_START]', fmt(templateData.planStart))
             .replace('[IST_START]', fmt(templateData.actualStart))
             .replace('[ABFAHRT]', fmt(templateData.departure))
@@ -182,9 +190,8 @@ const EmailTemplates = () => {
             .replace('[PLAN_ENDE]', fmt(templateData.planEnd))
             .replace('[IST_ENDE]', fmt(templateData.actualEnd));
 
-        // 6. Open Mail Client
-        // FIX: Manual %0A Strategy for 1&1 App
-        // We split by newline, encode each line, and join with %0A explicitly.
+        // 7. ENCODING STRATEGY: MANUAL SPLIT & JOIN (%0A)
+        // Split by JS newline, encode parts, join with explicit %0A
         const bodyEncoded = finalBody.split('\n')
             .map(line => encodeURIComponent(line))
             .join('%0A');
