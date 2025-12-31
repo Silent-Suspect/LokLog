@@ -129,8 +129,16 @@ const EmailTemplates = () => {
     };
 
     const generateMailto = () => {
-        // Logic to build subject & body based on selectedTemplate + profile
-        // Use encodeURIComponent()
+        // 1. Determine Recipient
+        let recipientEmail = '';
+        if (selectedTemplate === 'times') {
+            recipientEmail = 'dienstzeiten@dispotf.de';
+        } else {
+            // Default for 'start' and 'end'
+            recipientEmail = 'operations@dispotf.de';
+        }
+
+        // 2. Build Subject & Body
         let subject = "Nachricht";
         if (selectedTemplate === 'start') subject = "Dienstbeginn";
         else if (selectedTemplate === 'end') subject = "Dienstende";
@@ -139,7 +147,8 @@ const EmailTemplates = () => {
         const rawTemplate = profile.templates[selectedTemplate] || DEFAULT_TEMPLATES[selectedTemplate];
         const body = parseTemplate(rawTemplate);
 
-        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        // 3. Link
+        window.location.href = `mailto:${recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     };
 
     return (
