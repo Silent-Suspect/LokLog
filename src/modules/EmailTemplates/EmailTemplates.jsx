@@ -107,6 +107,8 @@ const EmailTemplates = () => {
     const parseTemplate = (rawText) => {
         let text = rawText || '';
         const greeting = getGreeting();
+        // Time Formatter: HH:MM -> HH.MM
+        const fmt = (t) => t ? t.replace(':', '.') : '--.--';
 
         // Header Logic
         let headerBlock = '';
@@ -126,36 +128,32 @@ const EmailTemplates = () => {
         text = text.replaceAll('[Nachname]', profile.lastName);
 
         // Data Replacements
-        text = text.replaceAll('[ZEIT]', templateData.time.replace(':', '.'));
+        text = text.replaceAll('[ZEIT]', fmt(templateData.time));
         text = text.replaceAll('[ORT]', templateData.location);
-        text = text.replaceAll('[ENDE]', (templateData.endTime || '').replace(':', '.'));
+        text = text.replaceAll('[ENDE]', fmt(templateData.endTime));
         text = text.replaceAll('[PAUSE]', templateData.pause || '0');
 
-        text = text.replaceAll('[PLAN_START]', templateData.planStart || '--:--');
-        text = text.replaceAll('[IST_START]', templateData.actualStart || '--:--');
-        text = text.replaceAll('[ABFAHRT]', templateData.departure || '--:--');
-        text = text.replaceAll('[ANKUNFT]', templateData.arrival || '--:--');
-        text = text.replaceAll('[PLAN_ENDE]', templateData.planEnd || '--:--');
-        text = text.replaceAll('[IST_ENDE]', templateData.actualEnd || '--:--');
+        text = text.replaceAll('[PLAN_START]', fmt(templateData.planStart));
+        text = text.replaceAll('[IST_START]', fmt(templateData.actualStart));
+        text = text.replaceAll('[ABFAHRT]', fmt(templateData.departure));
+        text = text.replaceAll('[ANKUNFT]', fmt(templateData.arrival));
+        text = text.replaceAll('[PLAN_ENDE]', fmt(templateData.planEnd));
+        text = text.replaceAll('[IST_ENDE]', fmt(templateData.actualEnd));
 
         return text;
     };
 
     const generateMailto = () => {
         // 1. Determine Recipient
-        let recipientEmail = '';
-        if (selectedTemplate === 'times') {
-            recipientEmail = 'dienstzeiten@dispotf.de';
-        } else {
-            // Default for 'start' and 'end'
-            recipientEmail = 'operations@dispotf.de';
-        }
+        const recipientEmail = selectedTemplate === 'times' ? 'dienstzeiten@dispotf.de' : 'operations@dispotf.de';
 
-        // 2. Build Subject & Body
-        let subject = "Nachricht";
-        if (selectedTemplate === 'start') subject = "Dienstbeginn";
-        else if (selectedTemplate === 'end') subject = "Dienstende";
-        else if (selectedTemplate === 'times') subject = "Dienstzeiten";
+        // 2. Build Subject (with Date)
+        let subjectPrefix = "Nachricht";
+        if (selectedTemplate === 'start') subjectPrefix = "Dienstbeginn";
+        else if (selectedTemplate === 'end') subjectPrefix = "Dienstende";
+        else if (selectedTemplate === 'times') subjectPrefix = "Dienstzeiten";
+
+        const subject = `${subjectPrefix} - ${new Date().toLocaleDateString('de-DE')}`;
 
         const rawTemplate = profile.templates[selectedTemplate] || DEFAULT_TEMPLATES[selectedTemplate];
         const body = parseTemplate(rawTemplate);
