@@ -163,7 +163,7 @@ const EmailTemplates = () => {
 
         // 5. Build Header
         const header = includeHeader
-            ? `${profile.firstName} ${profile.lastName}\n${profile.street}\n${profile.zip} ${profile.city}\nTel: ${profile.landline}\nMobil: ${profile.mobile}\nEmail: ${profile.senderEmail}`
+            ? `${profile.firstName} ${profile.lastName}\n${profile.street}\n${profile.zip} ${profile.city}\n${profile.landline}\n${profile.mobile}\n${profile.senderEmail}`
             : '';
 
         let finalBody = (profile.templates[selectedTemplate] || DEFAULT_TEMPLATES[selectedTemplate])
