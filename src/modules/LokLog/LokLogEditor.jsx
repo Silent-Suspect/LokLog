@@ -1205,7 +1205,7 @@ const LokLogEditor = () => {
                                         </div>
                                         <div className="flex flex-col">
                                             <label className="text-[10px] text-gray-500 uppercase">Tfz-Nr.</label>
-                                            <input placeholder="185 123" value={seg.tfz} onChange={e => setSegments(p => p.map((x, idx) => idx === i ? { ...x, tfz: e.target.value } : x))} className="bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
+                                            <input placeholder="185 123-4" value={seg.tfz} onChange={e => setSegments(p => p.map((x, idx) => idx === i ? { ...x, tfz: e.target.value } : x))} className="bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none" />
                                         </div>
                                         <div className="flex flex-col">
                                             <label className="text-[10px] text-gray-500 uppercase">AB</label>
