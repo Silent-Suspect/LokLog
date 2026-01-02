@@ -188,6 +188,7 @@ const EmailTemplates = () => {
             .replace('[IST_START]', fmt(templateData.actualStart))
             .replace('[ABFAHRT]', fmt(templateData.departure))
             .replace('[ANKUNFT]', fmt(templateData.arrival))
+            .replace('[PLAN_ENDE]', fmt(templateData.planEnd))
             .replace('[IST_ENDE]', fmt(templateData.actualEnd));
 
         // 7. SAFETY NET: Copy to Clipboard
