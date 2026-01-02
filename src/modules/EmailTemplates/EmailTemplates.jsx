@@ -169,9 +169,9 @@ const EmailTemplates = () => {
             if (profile.street) header += `\n${profile.street}`;
             if (profile.zip || profile.city) header += `\n${profile.zip} ${profile.city}`;
             // Note: using landline from state, labeled as Tel
-            if (profile.landline) header += `\nTel: ${profile.landline}`;
-            if (profile.mobile) header += `\nMobil: ${profile.mobile}`;
-            if (profile.senderEmail) header += `\nEmail: ${profile.senderEmail}`;
+            if (profile.landline) header += `\n${profile.landline}`;
+            if (profile.mobile) header += `\n${profile.mobile}`;
+            if (profile.senderEmail) header += `\n${profile.senderEmail}`;
         }
 
         // 6. Build Body Text
