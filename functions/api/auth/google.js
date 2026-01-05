@@ -2,17 +2,23 @@ import { createClerkClient } from '@clerk/backend';
 
 // Helper: Verify Clerk Session
 async function getUserId(request, env) {
-    const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
-    const { isSignedIn, toAuth } = await clerk.authenticateRequest(request);
-    if (!isSignedIn) return null;
-    const auth = toAuth();
-    return auth.userId;
+    try {
+        if (!env.CLERK_SECRET_KEY) throw new Error("Missing CLERK_SECRET_KEY in env");
+        const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
+        const { isSignedIn, toAuth } = await clerk.authenticateRequest(request);
+        if (!isSignedIn) return null;
+        const auth = toAuth();
+        return auth.userId;
+    } catch (e) {
+        console.error("Clerk Auth Error:", e);
+        throw e;
+    }
 }
 
 export async function onRequestPost({ request, env }) {
     try {
         const userId = await getUserId(request, env);
-        if (!userId) return new Response('Unauthorized', { status: 401 });
+        if (!userId) return new Response('Unauthorized - Clerk verification failed', { status: 401 });
 
         const { code } = await request.json();
 
@@ -53,14 +59,18 @@ export async function onRequestPost({ request, env }) {
         });
 
     } catch (err) {
-        return new Response(err.message, { status: 500 });
+        console.error("POST Error:", err);
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
 }
 
 export async function onRequestGet({ request, env }) {
     try {
         const userId = await getUserId(request, env);
-        if (!userId) return new Response('Unauthorized', { status: 401 });
+        if (!userId) return new Response('Unauthorized - Clerk verification failed', { status: 401 });
 
         // Retrieve Refresh Token
         const record = await env.DB.prepare(
@@ -101,6 +111,10 @@ export async function onRequestGet({ request, env }) {
         });
 
     } catch (err) {
-        return new Response(err.message, { status: 500 });
+        console.error("GET Error:", err);
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
 }
