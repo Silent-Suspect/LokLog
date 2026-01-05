@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Cloud, Loader2, FolderOpen, LogOut, UploadCloud } from 'lucide-react';
+import { Cloud, Loader2, FolderOpen, LogOut, UploadCloud, Edit2 } from 'lucide-react';
 
 const DriveConnect = ({
     isApiReady,
@@ -60,9 +60,18 @@ const DriveConnect = ({
                     </button>
                 </div>
 
-                <div className="text-sm text-gray-400 flex items-center gap-2">
-                    <FolderOpen size={14} />
-                    Target: <span className="text-white font-mono">{folderName}</span>
+                <div className="flex items-center justify-between bg-black/20 p-2 rounded-lg">
+                    <div className="text-sm text-gray-400 flex items-center gap-2 truncate mr-2">
+                        <FolderOpen size={14} className="flex-shrink-0" />
+                        <span className="text-white font-mono truncate">{folderName}</span>
+                    </div>
+                    <button
+                        onClick={handleConnect}
+                        disabled={loading}
+                        className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded flex items-center gap-1 transition"
+                    >
+                        <Edit2 size={10} /> Change
+                    </button>
                 </div>
 
                 {/* Test Button - Only for verification, can be removed later */}
