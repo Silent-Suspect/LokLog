@@ -3,8 +3,12 @@ import { useAuth, useUser } from '@clerk/clerk-react';
 import { Save, FileDown, Plus, Trash2, TrainFront, Clock, Zap, CheckSquare, Calendar, ArrowRight, Wifi, WifiOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import DriveConnect from '../GoogleDrive/DriveConnect';
+import { useGoogleDrive } from '../../hooks/useGoogleDrive';
 
 const LokLogEditor = () => {
+    const drive = useGoogleDrive();
+    const { isConnected, uploadFile } = drive;
     const { getToken } = useAuth();
     const { user } = useUser();
 
@@ -890,6 +894,18 @@ const LokLogEditor = () => {
             const fileName = `${date}_Fahrtbericht_${user?.lastName || ''}, ${user?.firstName || ''}.xlsx`;
             saveAs(blob, fileName);
 
+            // 9. Auto-Upload to Drive (if connected)
+            if (isConnected) {
+                showToast('Saving to Google Drive...', 'info');
+                try {
+                    await uploadFile(blob, fileName);
+                    showToast('✅ Saved to Google Drive!', 'success');
+                } catch (driveErr) {
+                    console.error("Drive Upload Failed", driveErr);
+                    showToast('❌ Drive Upload Failed: ' + driveErr.message, 'error');
+                }
+            }
+
         } catch (err) {
             console.error(err);
             alert('Export Error: ' + err.message);
@@ -1331,7 +1347,12 @@ const LokLogEditor = () => {
             )}
 
             {/* Sticky Footer Actions */}
-            <div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex justify-end items-center gap-4">
+            <div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex items-center justify-between gap-4">
+
+                {/* LEFT: Drive Status */}
+                <div className="hidden md:block">
+                    <DriveConnect {...drive} />
+                </div>
 
                 {/* TOAST NOTIFICATION */}
                 {toast.visible && (
@@ -1353,21 +1374,28 @@ const LokLogEditor = () => {
                         <CheckSquare size={14} /> Draft saved locally
                     </span>
                 )}
-                <button
-                    onClick={handleExport}
-                    disabled={saving}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold bg-green-900/20 text-green-400 border border-green-900/50 hover:bg-green-900/30 transition"
-                >
-                    <FileDown size={20} /> Export Excel
-                </button>
-                <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="flex items-center gap-2 px-8 py-3 rounded-xl font-bold bg-accent-blue text-white shadow-lg shadow-blue-900/20 hover:bg-blue-600 transition"
-                >
-                    <Save size={20} />
-                    {saving ? 'Saving...' : 'Save Report'}
-                </button>
+                <div className="flex gap-4 items-center">
+                    {/* Mobile Drive Connect (Only if disconnected) */}
+                    <div className="md:hidden">
+                        <DriveConnect {...drive} />
+                    </div>
+
+                    <button
+                        onClick={handleExport}
+                        disabled={saving}
+                        className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold bg-green-900/20 text-green-400 border border-green-900/50 hover:bg-green-900/30 transition"
+                    >
+                        <FileDown size={20} /> Export Excel
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="flex items-center gap-2 px-8 py-3 rounded-xl font-bold bg-accent-blue text-white shadow-lg shadow-blue-900/20 hover:bg-blue-600 transition"
+                    >
+                        <Save size={20} />
+                        {saving ? 'Saving...' : 'Save Report'}
+                    </button>
+                </div>
             </div>
         </div >
     );
