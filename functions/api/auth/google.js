@@ -1,18 +1,15 @@
-// Helper: Verify Clerk Session (Debug Mode: Simple Decode)
+import { verifyClerkToken } from '../../utils/clerk-verify';
+
+// Helper: Verify Clerk Session
 async function getUserId(request, env) {
     try {
         const authHeader = request.headers.get('Authorization');
         if (!authHeader) return null;
 
         const token = authHeader.replace('Bearer ', '');
-        const parts = token.split('.');
-        if (parts.length !== 3) return null;
-
-        // Decode Payload
-        const payload = JSON.parse(atob(parts[1]));
-        return payload.sub; // User ID
+        return await verifyClerkToken(token, env);
     } catch (e) {
-        console.error("Auth Decode Error:", e);
+        console.error("Auth Verification Error:", e);
         return null;
     }
 }
