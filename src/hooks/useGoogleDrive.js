@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import googleConfig from '../config/google';
 
 // Global state to track script loading status
@@ -6,9 +7,9 @@ let gapiLoaded = false;
 let gisLoaded = false;
 
 export const useGoogleDrive = () => {
+  const { getToken } = useAuth();
   const [isApiReady, setIsApiReady] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [tokenClient, setTokenClient] = useState(null);
+  const [codeClient, setCodeClient] = useState(null);
   const [connectedFolderId, setConnectedFolderId] = useState(localStorage.getItem('loklog_drive_folder_id'));
   const [connectedFolderName, setConnectedFolderName] = useState(localStorage.getItem('loklog_drive_folder_name'));
 
@@ -58,71 +59,85 @@ export const useGoogleDrive = () => {
     loadScripts().catch(err => console.error("Failed to load Google Scripts", err));
   }, []);
 
-  // Initialize Token Client once GIS is ready
+  // Initialize Code Client (Authorization Code Flow)
   useEffect(() => {
-    if (isApiReady && window.google?.accounts?.oauth2 && !tokenClient) {
-      const client = window.google.accounts.oauth2.initTokenClient({
+    if (isApiReady && window.google?.accounts?.oauth2 && !codeClient) {
+      const client = window.google.accounts.oauth2.initCodeClient({
         client_id: googleConfig.clientId,
         scope: googleConfig.scopes,
-        callback: (response) => {
-          if (response.error !== undefined) {
-            console.error(response);
-            throw (response);
+        ux_mode: 'popup',
+        callback: async (response) => {
+          if (response.code) {
+            // Send Code to Backend
+            try {
+                const token = await getToken();
+                const res = await fetch('/api/auth/google', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ code: response.code })
+                });
+
+                if (!res.ok) throw new Error('Code exchange failed');
+
+                const data = await res.json();
+                if (window.gapi) window.gapi.client.setToken({ access_token: data.access_token });
+            } catch (e) {
+                console.error("Backend Auth Error", e);
+            }
           }
-          setIsAuthenticated(true);
         },
       });
-      // Defer state update to avoid synchronous update warning
-      setTimeout(() => setTokenClient(client), 0);
+      setTimeout(() => setCodeClient(client), 0);
     }
-  }, [isApiReady, tokenClient]);
+  }, [isApiReady, codeClient, getToken]);
 
-  // Login Function
-  const login = useCallback(async () => {
-    return new Promise((resolve, reject) => {
-      if (!tokenClient) return reject("Token Client not ready");
+  // Login Function (Triggers Popup)
+  const login = useCallback(() => {
+    if (!codeClient) return;
+    // Ask for refresh token (offline access)
+    codeClient.requestCode();
+  }, [codeClient]);
 
-      // Override callback for this specific request to handle the promise
-      tokenClient.callback = (resp) => {
-        if (resp.error) reject(resp);
-
-        // Important: Bridge the token to gapi for Picker/Drive API
-        if (window.gapi) window.gapi.client.setToken(resp);
-
-        // Cache Token
-        const expiresAt = Date.now() + (resp.expires_in * 1000) - 60000; // Buffer 60s
-        localStorage.setItem('loklog_drive_token', resp.access_token);
-        localStorage.setItem('loklog_drive_token_expiry', expiresAt);
-
-        setIsAuthenticated(true);
-        resolve(resp.access_token);
-      };
-
-      // Trigger flow
-      tokenClient.requestAccessToken({});
-    });
-  }, [tokenClient]);
-
+  // Get Valid Token (From Backend)
   const getValidToken = useCallback(async () => {
-      const storedToken = localStorage.getItem('loklog_drive_token');
-      const expiry = localStorage.getItem('loklog_drive_token_expiry');
+      // 1. Try fetching fresh token from backend (using refresh token)
+      try {
+          const token = await getToken();
+          const res = await fetch('/api/auth/google', {
+              headers: { 'Authorization': `Bearer ${token}` }
+          });
 
-      if (storedToken && expiry && Date.now() < parseInt(expiry)) {
-          // Token is valid, ensure GAPI has it
-          if (window.gapi && !window.gapi.client.getToken()) {
-              window.gapi.client.setToken({ access_token: storedToken });
+          if (res.status === 404 || res.status === 410) {
+              // No refresh token found or revoked -> Trigger Login
+              login();
+              throw new Error("Login required");
           }
-          setIsAuthenticated(true);
-          return storedToken;
-      }
 
-      // Token expired or missing, force login
-      return await login();
-  }, [login]);
+          if (!res.ok) throw new Error("Auth check failed");
+
+          const data = await res.json();
+          if (window.gapi) window.gapi.client.setToken({ access_token: data.access_token });
+          return data.access_token;
+      } catch (e) {
+          if (e.message === "Login required") throw e;
+          console.warn("Silent refresh failed", e);
+          throw e;
+      }
+  }, [getToken, login]);
 
   // Pick Folder Function
   const pickFolder = useCallback(async () => {
-    await getValidToken();
+    // If no token, this throws and we catch it in the UI to trigger login first
+    try {
+        await getValidToken();
+    } catch (e) {
+        // If login required, we can't show picker yet. User must click "Connect" again after popup.
+        // Or we rely on 'login()' triggered in getValidToken to show popup.
+        return;
+    }
 
     return new Promise((resolve, reject) => {
       const showPicker = () => {
@@ -158,7 +173,7 @@ export const useGoogleDrive = () => {
 
       showPicker();
     });
-  }, [isAuthenticated, login]);
+  }, [getValidToken]);
 
   // Upload File Function (Overwrite logic)
   const uploadFile = useCallback(async (fileBlob, fileName) => {
@@ -234,12 +249,10 @@ export const useGoogleDrive = () => {
         return await performUpload(accessToken);
     } catch (e) {
         if (e.message === "401") {
-            // Token was invalid (revoked?), try fresh login
-            console.log("Token expired/revoked during upload, refreshing...");
-            localStorage.removeItem('loklog_drive_token');
-            localStorage.removeItem('loklog_drive_token_expiry');
-            const newToken = await login();
-            return await performUpload(newToken);
+            // If backend token is stale, try forcing a fresh one (login popup)
+            console.log("Token expired/revoked during upload, triggering re-login...");
+            login();
+            throw new Error("Please check popup to re-authenticate.");
         }
         throw e;
     }
