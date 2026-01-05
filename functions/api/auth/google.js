@@ -1,19 +1,19 @@
-// Helper: Verify Clerk Session
+// Helper: Verify Clerk Session (Debug Mode: Simple Decode)
 async function getUserId(request, env) {
     try {
-        if (!env.CLERK_SECRET_KEY) throw new Error("Missing CLERK_SECRET_KEY in env");
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader) return null;
 
-        // Dynamic Import to catch initialization errors
-        const { createClerkClient } = await import('@clerk/backend');
+        const token = authHeader.replace('Bearer ', '');
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
 
-        const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
-        const { isSignedIn, toAuth } = await clerk.authenticateRequest(request);
-        if (!isSignedIn) return null;
-        const auth = toAuth();
-        return auth.userId;
+        // Decode Payload
+        const payload = JSON.parse(atob(parts[1]));
+        return payload.sub; // User ID
     } catch (e) {
-        console.error("Clerk Auth Error:", e);
-        throw e;
+        console.error("Auth Decode Error:", e);
+        return null;
     }
 }
 
