@@ -92,7 +92,9 @@ export const useGoogleDrive = () => {
       };
 
       // Trigger flow
-      tokenClient.requestAccessToken({ prompt: 'consent' });
+      // Removed { prompt: 'consent' } to avoid forcing the consent screen every time.
+      // Default behavior allows for "silent-ish" auth if already approved.
+      tokenClient.requestAccessToken({});
     });
   }, [tokenClient]);
 
