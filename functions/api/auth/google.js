@@ -1,9 +1,11 @@
-import { createClerkClient } from '@clerk/backend';
-
 // Helper: Verify Clerk Session
 async function getUserId(request, env) {
     try {
         if (!env.CLERK_SECRET_KEY) throw new Error("Missing CLERK_SECRET_KEY in env");
+
+        // Dynamic Import to catch initialization errors
+        const { createClerkClient } = await import('@clerk/backend');
+
         const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
         const { isSignedIn, toAuth } = await clerk.authenticateRequest(request);
         if (!isSignedIn) return null;
