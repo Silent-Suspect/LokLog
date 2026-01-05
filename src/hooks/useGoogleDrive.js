@@ -40,7 +40,7 @@ export const useGoogleDrive = () => {
       }
 
       // Load GIS
-      if (!window.google) {
+      if (!window.google?.accounts) {
         await new Promise((resolve) => {
           const script = document.createElement('script');
           script.src = 'https://accounts.google.com/gsi/client';
@@ -60,7 +60,7 @@ export const useGoogleDrive = () => {
 
   // Initialize Token Client once GIS is ready
   useEffect(() => {
-    if (isApiReady && window.google && !tokenClient) {
+    if (isApiReady && window.google?.accounts?.oauth2 && !tokenClient) {
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: googleConfig.clientId,
         scope: googleConfig.scopes,
@@ -85,6 +85,8 @@ export const useGoogleDrive = () => {
       // Override callback for this specific request to handle the promise
       tokenClient.callback = (resp) => {
         if (resp.error) reject(resp);
+        // Important: Bridge the token to gapi for Picker/Drive API
+        if (window.gapi) window.gapi.client.setToken(resp);
         setIsAuthenticated(true);
         resolve(resp.access_token);
       };

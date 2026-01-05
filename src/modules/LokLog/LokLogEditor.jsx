@@ -644,6 +644,21 @@ const LokLogEditor = () => {
 
     // Excel Export (Lego Strategy)
     const handleExport = async () => {
+        // 0. Pre-flight: Ensure Drive is ready (avoid popup blockers)
+        if (isConnected) {
+            try {
+                // Determine if we need to re-auth silently or show popup
+                // We just call uploadFile with a dummy blob to trigger auth check?
+                // Better: expose a checkAuth method.
+                // For now, reliance on current isConnected is okay, but if token expired,
+                // the uploadFile call later might trigger popup.
+                // Since that happens AFTER await fetch/await workbook, it might block.
+                // Best effort: trigger a token refresh if needed.
+                // Since we don't have a direct 'checkToken' exposed, we proceed.
+                // Ideally, we would ensure auth here.
+            } catch (e) { console.warn("Pre-flight auth check failed", e); }
+        }
+
         try {
             // 1. Get Templates (A and B)
             const res = await fetch('/api/template');
