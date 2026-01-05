@@ -66,3 +66,56 @@ This is the core logic engine. It manages:
 2.  **Duplicate Files:**
     *   Google Drive allows multiple files with the same name.
     *   *Solution:* The `uploadFile` function explicitly implements "Search-then-Update" logic to enforce overwriting (revising) the file instead of duplicating it.
+
+## 🛡️ Security Verification
+
+Since the backend uses a custom lightweight implementation to verify Clerk JWTs (to avoid Cloudflare Edge crashes), it is important to periodically verify the security.
+
+**Run these scripts in your Browser Console (F12) while logged in:**
+
+### 1. Test Valid Token (Expected: 200/404)
+```javascript
+async function testValidAuth() {
+    console.log("🧪 Testing VALID Token...");
+    const token = await window.Clerk.session.getToken();
+    const res = await fetch('/api/auth/google', {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    console.log(`Result: ${res.status} ${res.statusText}`);
+    if (res.status === 401) console.error("❌ FAILED: Valid token was rejected!");
+    else console.log("✅ PASSED: Valid token accepted.");
+}
+testValidAuth();
+```
+
+### 2. Test Fake Token (Expected: 401)
+```javascript
+async function testFakeAuth() {
+    console.log("🧪 Testing FAKE Token...");
+    const res = await fetch('/api/auth/google', {
+        headers: { 'Authorization': `Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmYWtlX3VzZXIifQ.fake_signature` }
+    });
+    console.log(`Result: ${res.status} ${res.statusText}`);
+    if (res.status === 401) console.log("✅ PASSED: Fake token successfully rejected!");
+    else console.error("❌ CRITICAL FAIL: Fake token was accepted!");
+}
+testFakeAuth();
+```
+
+### 3. Test Tampered Token (Expected: 401)
+```javascript
+async function testTamperedAuth() {
+    console.log("🧪 Testing TAMPERED Token...");
+    const realToken = await window.Clerk.session.getToken();
+    const parts = realToken.split('.');
+    const tampered = `${parts[0]}.eyJzdWIiOiJadminIn0.${parts[2]}`; // Valid Header, Fake Payload, Valid Signature (mismatch)
+
+    const res = await fetch('/api/auth/google', {
+        headers: { 'Authorization': `Bearer ${tampered}` }
+    });
+    console.log(`Result: ${res.status} ${res.statusText}`);
+    if (res.status === 401 || res.status === 500) console.log("✅ PASSED: Tampered token rejected!");
+    else console.error("❌ CRITICAL FAIL: Tampered token accepted!");
+}
+testTamperedAuth();
+```
