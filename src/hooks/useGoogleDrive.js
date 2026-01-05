@@ -138,7 +138,7 @@ export const useGoogleDrive = () => {
     });
   }, [isAuthenticated, login]);
 
-  // Upload File Function
+  // Upload File Function (Overwrite logic)
   const uploadFile = useCallback(async (fileBlob, fileName) => {
     if (!connectedFolderId) throw new Error("No folder selected");
 
@@ -149,18 +149,45 @@ export const useGoogleDrive = () => {
 
     const accessToken = window.gapi.client.getToken().access_token;
 
+    // 1. Search for existing file
+    let existingFileId = null;
+    try {
+      const q = `name = '${fileName}' and '${connectedFolderId}' in parents and trashed = false`;
+      const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        if (searchData.files && searchData.files.length > 0) {
+          existingFileId = searchData.files[0].id;
+        }
+      }
+    } catch (e) {
+      console.warn("Search failed, falling back to create", e);
+    }
+
+    // 2. Prepare Upload
     const metadata = {
       name: fileName,
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      parents: [connectedFolderId]
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     };
+    if (!existingFileId) {
+      metadata.parents = [connectedFolderId];
+    }
 
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     form.append('file', fileBlob);
 
-    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-      method: 'POST',
+    // 3. Update (PATCH) or Create (POST)
+    const url = existingFileId
+      ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`
+      : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+
+    const method = existingFileId ? 'PATCH' : 'POST';
+
+    const res = await fetch(url, {
+      method: method,
       headers: {
         'Authorization': `Bearer ${accessToken}`,
       },

@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-react';
-import { Save, FileDown, Plus, Trash2, TrainFront, Clock, Zap, CheckSquare, Calendar, ArrowRight, Wifi, WifiOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Save, FileDown, Plus, Trash2, TrainFront, Clock, Zap, CheckSquare, Calendar, ArrowRight, Wifi, WifiOff, ChevronLeft, ChevronRight, Cloud } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import DriveConnect from '../GoogleDrive/DriveConnect';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
 
 const LokLogEditor = () => {
-    const drive = useGoogleDrive();
-    const { isConnected, uploadFile } = drive;
+    const { isConnected, uploadFile } = useGoogleDrive();
     const { getToken } = useAuth();
     const { user } = useUser();
 
@@ -902,23 +900,34 @@ const LokLogEditor = () => {
             sumCell.alignment = { horizontal: 'right' };
 
 
-            // 8. Download
-            // Download logic
+            // 8. Output Logic
             const out = await workbook.xlsx.writeBuffer();
             const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const fileName = `${date}_Fahrtbericht_${user?.lastName || ''}, ${user?.firstName || ''}.xlsx`;
-            saveAs(blob, fileName);
 
-            // 9. Auto-Upload to Drive (if connected)
+            // Check Preferences
+            const downloadCopy = localStorage.getItem('loklog_pref_download_copy') !== 'false';
+
             if (isConnected) {
+                // Cloud Mode
                 showToast('Saving to Google Drive...', 'info');
                 try {
                     await uploadFile(blob, fileName);
                     showToast('✅ Saved to Google Drive!', 'success');
+
+                    // Optional: Download local copy if pref is set
+                    if (downloadCopy) {
+                        saveAs(blob, fileName);
+                    }
                 } catch (driveErr) {
                     console.error("Drive Upload Failed", driveErr);
                     showToast('❌ Drive Upload Failed: ' + driveErr.message, 'error');
+                    // Fallback to local download on failure
+                    saveAs(blob, fileName);
                 }
+            } else {
+                // Classic Mode
+                saveAs(blob, fileName);
             }
 
         } catch (err) {
@@ -1362,12 +1371,7 @@ const LokLogEditor = () => {
             )}
 
             {/* Sticky Footer Actions */}
-            <div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex items-center justify-between gap-4">
-
-                {/* LEFT: Drive Status */}
-                <div className="hidden md:block">
-                    <DriveConnect {...drive} />
-                </div>
+            <div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex items-center justify-end gap-4">
 
                 {/* TOAST NOTIFICATION */}
                 {toast.visible && (
@@ -1390,17 +1394,17 @@ const LokLogEditor = () => {
                     </span>
                 )}
                 <div className="flex gap-4 items-center">
-                    {/* Mobile Drive Connect (Only if disconnected) */}
-                    <div className="md:hidden">
-                        <DriveConnect {...drive} />
-                    </div>
-
                     <button
                         onClick={handleExport}
                         disabled={saving}
-                        className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold bg-green-900/20 text-green-400 border border-green-900/50 hover:bg-green-900/30 transition"
+                        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold border transition ${
+                            isConnected
+                            ? 'bg-blue-900/20 text-blue-400 border-blue-900/50 hover:bg-blue-900/30'
+                            : 'bg-green-900/20 text-green-400 border-green-900/50 hover:bg-green-900/30'
+                        }`}
                     >
-                        <FileDown size={20} /> Export Excel
+                        {isConnected ? <Cloud size={20} /> : <FileDown size={20} />}
+                        {isConnected ? 'Save to Drive' : 'Export Excel'}
                     </button>
                     <button
                         onClick={handleSave}
