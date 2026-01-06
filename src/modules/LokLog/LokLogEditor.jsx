@@ -3,6 +3,7 @@ import { useAuth, useUser } from '@clerk/clerk-react';
 import { Save, FileDown, Plus, Trash2, TrainFront, Clock, Zap, CheckSquare, Calendar, ArrowRight, Cloud, RefreshCw } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
+import { useUserSettings } from '../../hooks/useUserSettings';
 
 // New Modules
 import { useShiftSync } from './hooks/useShiftSync';
@@ -12,8 +13,16 @@ import { generateShiftExcel } from './services/exportService';
 const LokLogEditor = () => {
     const { isConnected, uploadFile } = useGoogleDrive();
     const { user } = useUser();
+    const { settings } = useUserSettings();
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    // Toast State
+    const [toast, setToast] = useState({ message: '', type: '', visible: false });
+    const showToast = (message, type = 'info') => {
+        setToast({ message, type, visible: true });
+        setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
+    };
 
     // Online Listener
     useEffect(() => {
@@ -191,9 +200,15 @@ const LokLogEditor = () => {
             const blob = new Blob([blobData], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const fileName = `${date}_Fahrtbericht_${user?.lastName || ''}, ${user?.firstName || ''}.xlsx`;
 
-            const downloadCopy = localStorage.getItem('loklog_pref_download_copy') !== 'false';
+            // Use Server Settings for Download Preference
+            // Default to true if loading or undefined, but hook returns default true anyway
+            const downloadCopy = settings.pref_download_copy !== false;
+
             if (isConnected) {
+                showToast('Uploading to Drive...', 'info');
                 await uploadFile(blob, fileName);
+                showToast('✅ Saved to Drive!', 'success');
+
                 if (downloadCopy) saveAs(blob, fileName);
             } else {
                 saveAs(blob, fileName);
@@ -201,7 +216,7 @@ const LokLogEditor = () => {
 
         } catch (err) {
             console.error(err);
-            alert("Export Error: " + err.message);
+            showToast('❌ Export Error: ' + err.message, 'error');
         } finally {
             setExporting(false);
         }
@@ -421,6 +436,15 @@ const LokLogEditor = () => {
 
             {/* Sticky Footer */}
             <div className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur border-t border-gray-800 p-4 md:pl-72 z-40 flex items-center justify-end gap-4">
+
+                {/* TOAST */}
+                {toast.visible && (
+                    <div className={`fixed bottom-24 right-4 z-50 px-6 py-3 rounded-xl border shadow-2xl animate-in slide-in-from-bottom-5 fade-in duration-300 font-bold flex items-center gap-3 ${toast.type === 'error' ? 'bg-red-900/90 border-red-500 text-white' : 'bg-gray-900/90 border-green-500 text-white'}`}>
+                        <div className={`w-2 h-2 rounded-full animate-pulse ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`} />
+                        {toast.message}
+                    </div>
+                )}
+
                 <button onClick={handleExport} disabled={exporting} className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold border transition ${isConnected ? 'bg-blue-900/20 text-blue-400 border-blue-900/50 hover:bg-blue-900/30' : 'bg-green-900/20 text-green-400 border-green-900/50 hover:bg-green-900/30'}`}>
                     {isConnected ? <Cloud size={20} /> : <FileDown size={20} />}
                     {isConnected ? (exporting ? 'Uploading...' : 'Save to Drive') : 'Export Excel'}
