@@ -177,6 +177,7 @@ const EmailTemplates = () => {
         let recipient = 'operations@dispotf.de';
         if (selectedTemplate === 'times') recipient = 'dienstzeiten@dispotf.de';
         if (selectedTemplate === 'roster') recipient = 'personalplanung-dtf@dispotf.de';
+        if (selectedTemplate === 'timesheet') recipient = 'stundenzettel@dispotf.de';
 
         // 2. Format Helper
         const fmt = (t) => t ? t.replace(':', '.') : '--.--';
