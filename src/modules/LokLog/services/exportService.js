@@ -203,7 +203,7 @@ export const generateShiftExcel = async (data, user, templates, options = {}) =>
         const cell = ws.getCell(`A${currentRow}`);
         cell.value = line;
         cell.style = baseStyle;
-        cell.alignment = { ...baseStyle.alignment, wrapText: true, vertical: 'top' };
+        cell.alignment = { ...baseStyle.alignment, wrapText: true };
         try { ws.mergeCells(`A${currentRow}:N${currentRow}`); } catch (e) { }
         ws.getCell(currentRow, 15).border = { left: { style: 'medium' } };
         lastCommentRow = currentRow;
