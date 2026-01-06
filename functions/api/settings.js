@@ -1,4 +1,4 @@
-import { verifyToken } from '../utils/clerk-verify';
+import { verifyClerkToken } from '../utils/clerk-verify';
 
 export async function onRequest(context) {
     const { request, env } = context;
@@ -10,8 +10,8 @@ export async function onRequest(context) {
     let userId;
     try {
         const token = authHeader.split(' ')[1];
-        const payload = await verifyToken(token, env);
-        userId = payload.sub;
+        // verifyClerkToken returns the user ID directly (payload.sub)
+        userId = await verifyClerkToken(token, env);
     } catch (e) {
         return new Response('Invalid Token', { status: 401 });
     }
