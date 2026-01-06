@@ -8,9 +8,13 @@ const EmailTemplates = () => {
 
     // Defaults
     const DEFAULT_TEMPLATES = {
+        header: `[Vorname] [Nachname]\n[Strasse]\n[PLZ] [Ort]\n[Festnetz]\n[Mobil]\n[Email]`,
         start: `[Briefkopf]\n\n[Begrüßung],\n\nhier mein heutiger Dienstbeginn:\n[ZEIT] Uhr in [ORT].\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
         end: `[Briefkopf]\n\n[Begrüßung],\n\nhier mein heutiges Dienstende:\n[ZEIT] Uhr in [ORT].\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
-        times: `[Briefkopf]\n\n[Begrüßung],\n\nhier meine heutigen Dienstzeiten:\n\nDienstbeginn Plan: [PLAN_START] Uhr\nDienstbeginn Ist: [IST_START] Uhr\n\nAbfahrt: [ABFAHRT] Uhr\nAnkunft: [ANKUNFT] Uhr\n\nDienstende Plan: [PLAN_ENDE] Uhr\nDienstende Ist: [IST_ENDE] Uhr\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`
+        times: `[Briefkopf]\n\n[Begrüßung],\n\nhier meine heutigen Dienstzeiten:\n\nDienstbeginn Plan: [PLAN_START] Uhr\nDienstbeginn Ist: [IST_START] Uhr\n\nAbfahrt: [ABFAHRT] Uhr\nAnkunft: [ANKUNFT] Uhr\n\nDienstende Plan: [PLAN_ENDE] Uhr\nDienstende Ist: [IST_ENDE] Uhr\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
+        roster: `[Briefkopf]\n\n[Begrüßung],\n\nhiermit bestätige ich den aktuellen Dienstplan.\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
+        timesheet: `[Briefkopf]\n\n[Begrüßung],\n\nanbei meine Fahrtberichte für den [DATUM_BERICHT][EXTRA_TEXT].\n\n[TRAVEL_BLOCK]\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
+        travel: `[Datum_AnAbreise]\n[AnAbreise]\nvon [START_ORT] nach [ZIEL_ORT]\n[START_ZEIT] Uhr - [END_ZEIT]`
     };
 
     // User Profile & Templates State
@@ -82,7 +86,7 @@ const EmailTemplates = () => {
     };
 
     // Template Modal Logic
-    const [selectedTemplate, setSelectedTemplate] = useState(null); // 'start', 'end', 'times'
+    const [selectedTemplate, setSelectedTemplate] = useState(null); // 'start', 'end', 'times', 'roster', 'timesheet'
     const [templateData, setTemplateData] = useState({
         time: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
         location: 'MKP',
@@ -93,7 +97,24 @@ const EmailTemplates = () => {
         departure: '',
         arrival: '',
         planEnd: '',
-        actualEnd: ''
+        actualEnd: '',
+        // Stundenzettel
+        dateRequired: new Date().toISOString().split('T')[0],
+        dateOptional: '',
+        travelAnreise: false,
+        travelAbreise: false,
+        // Anreise
+        anreiseDate: '',
+        anreiseStart: '',
+        anreiseEnd: '',
+        anreiseStartTime: '',
+        anreiseEndTime: '',
+        // Abreise
+        abreiseDate: '',
+        abreiseStart: '',
+        abreiseEnd: '',
+        abreiseStartTime: '',
+        abreiseEndTime: ''
     });
     const [includeHeader, setIncludeHeader] = useState(true);
     const [copied, setCopied] = useState(false);
@@ -111,15 +132,22 @@ const EmailTemplates = () => {
         // Time Formatter: HH:MM -> HH.MM
         const fmt = (t) => t ? t.replace(':', '.') : '--.--';
 
-        // Header Logic
+        // Header Logic (New: Template Based)
         let headerBlock = '';
         if (includeHeader) {
-            headerBlock = `${profile.firstName} ${profile.lastName}`;
-            if (profile.street) headerBlock += `\n${profile.street}`;
-            if (profile.zip || profile.city) headerBlock += `\n${profile.zip} ${profile.city}`;
-            if (profile.landline) headerBlock += `\n${profile.landline}`;
-            if (profile.mobile) headerBlock += `\n${profile.mobile}`;
-            if (profile.senderEmail) headerBlock += `\n${profile.senderEmail}`;
+            const rawHeader = profile.templates?.header || DEFAULT_TEMPLATES.header;
+            headerBlock = rawHeader
+                .replaceAll('[Vorname]', profile.firstName)
+                .replaceAll('[Nachname]', profile.lastName)
+                .replaceAll('[Strasse]', profile.street)
+                .replaceAll('[PLZ]', profile.zip)
+                .replaceAll('[Ort]', profile.city)
+                .replaceAll('[Festnetz]', profile.landline)
+                .replaceAll('[Mobil]', profile.mobile)
+                .replaceAll('[Email]', profile.senderEmail);
+
+            // Clean up empty lines if variables are missing
+            // headerBlock = headerBlock.replace(/\n\s*\n/g, '\n');
         }
 
         // Replacements
@@ -154,7 +182,9 @@ const EmailTemplates = () => {
         // 3. Subject
         const subject = selectedTemplate === 'start' ? 'Dienstbeginn' :
             selectedTemplate === 'end' ? 'Dienstende' :
-                'Dienstzeiten';
+            selectedTemplate === 'times' ? 'Dienstzeiten' :
+            selectedTemplate === 'roster' ? 'Dienstplan' :
+            'Fahrtberichte / Stundenzettel';
 
         // 4. Dynamic Greeting (Strict Range)
         const h = new Date().getHours();
@@ -162,34 +192,100 @@ const EmailTemplates = () => {
         if (h >= 3 && h < 11) timeGreeting = 'Guten Morgen';
         else if (h >= 18 || h < 3) timeGreeting = 'Guten Abend';
 
-        // 5. Header (Corrected Variables & Labels)
+        // 5. Header (New: Template Based)
         let header = '';
         if (includeHeader) {
-            header = `${profile.firstName} ${profile.lastName}`;
-            if (profile.street) header += `\n${profile.street}`;
-            if (profile.zip || profile.city) header += `\n${profile.zip} ${profile.city}`;
-            // Note: using landline from state, labeled as Tel
-            if (profile.landline) header += `\n${profile.landline}`;
-            if (profile.mobile) header += `\n${profile.mobile}`;
-            if (profile.senderEmail) header += `\n${profile.senderEmail}`;
+            const rawHeader = profile.templates?.header || DEFAULT_TEMPLATES.header;
+            header = rawHeader
+                .replaceAll('[Vorname]', profile.firstName)
+                .replaceAll('[Nachname]', profile.lastName)
+                .replaceAll('[Strasse]', profile.street)
+                .replaceAll('[PLZ]', profile.zip)
+                .replaceAll('[Ort]', profile.city)
+                .replaceAll('[Festnetz]', profile.landline)
+                .replaceAll('[Mobil]', profile.mobile)
+                .replaceAll('[Email]', profile.senderEmail);
         }
 
         // 6. Build Body Text
-        let finalBody = (profile.templates[selectedTemplate] || DEFAULT_TEMPLATES[selectedTemplate])
-            .replace('[Briefkopf]', header)
-            .replace('[Begrüßung]', timeGreeting)
-            .replace('[Vorname]', profile.firstName)
-            .replace('[Nachname]', profile.lastName)
+        let rawBody = profile.templates?.[selectedTemplate] || DEFAULT_TEMPLATES[selectedTemplate];
+
+        // --- SPECIAL LOGIC FOR STUNDENZETTEL ---
+        let stundenzettelReplacements = {};
+        if (selectedTemplate === 'timesheet') {
+            // A. Date Range
+            const dateStr = templateData.dateOptional
+                ? `${new Date(templateData.dateRequired).toLocaleDateString('de-DE')} - ${new Date(templateData.dateOptional).toLocaleDateString('de-DE')}`
+                : new Date(templateData.dateRequired).toLocaleDateString('de-DE');
+            stundenzettelReplacements.DATUM_BERICHT = dateStr;
+
+            // B. Optional Intro Text ("sowie...")
+            // If any travel is selected, we add the text.
+            const hasTravel = templateData.travelAnreise || templateData.travelAbreise;
+            stundenzettelReplacements.EXTRA_TEXT = hasTravel ? ' (sowie die Angaben zu meiner Anreise/Abreise)' : '';
+
+            // C. Travel Blocks
+            let travelBlocks = [];
+            const travelTemplate = profile.templates?.travel || DEFAULT_TEMPLATES.travel;
+
+            // Helper to process a travel block
+            const processTravel = (type, date, start, end, sTime, eTime) => {
+                let block = travelTemplate;
+                // Basic
+                block = block.replaceAll('[Datum_AnAbreise]', date ? new Date(date).toLocaleDateString('de-DE') : 'DD.MM.YYYY');
+                block = block.replaceAll('[AnAbreise]', type);
+                block = block.replaceAll('[START_ORT]', start || 'START');
+                block = block.replaceAll('[ZIEL_ORT]', end || 'ZIEL');
+
+                // Time Logic with +1 Tag
+                // Note: The template now does NOT include "Uhr" for the end time, so we must add it here.
+                let timeStrEnd = fmt(eTime) + ' Uhr';
+                if (sTime && eTime) {
+                    const [sh, sm] = sTime.split(':').map(Number);
+                    const [eh, em] = eTime.split(':').map(Number);
+                    if (eh < sh || (eh === sh && em < sm)) {
+                        timeStrEnd += ' (+1 Tag)';
+                    }
+                }
+
+                block = block.replaceAll('[START_ZEIT]', fmt(sTime));
+                block = block.replaceAll('[END_ZEIT]', timeStrEnd);
+                return block;
+            };
+
+            if (templateData.travelAnreise) {
+                travelBlocks.push(processTravel('Anreise', templateData.anreiseDate, templateData.anreiseStart, templateData.anreiseEnd, templateData.anreiseStartTime, templateData.anreiseEndTime));
+            }
+            if (templateData.travelAbreise) {
+                travelBlocks.push(processTravel('Abreise', templateData.abreiseDate, templateData.abreiseStart, templateData.abreiseEnd, templateData.abreiseStartTime, templateData.abreiseEndTime));
+            }
+
+            stundenzettelReplacements.TRAVEL_BLOCK = travelBlocks.join('\n\n');
+        }
+
+        let finalBody = rawBody
+            .replaceAll('[Briefkopf]', header)
+            .replaceAll('[Begrüßung]', timeGreeting)
+            .replaceAll('[Vorname]', profile.firstName)
+            .replaceAll('[Nachname]', profile.lastName)
             // Legacy
-            .replace('[ZEIT]', fmt(templateData.time))
-            .replace('[ORT]', templateData.location || '')
+            .replaceAll('[ZEIT]', fmt(templateData.time))
+            .replaceAll('[ORT]', templateData.location || '')
             // Detailed Fields
-            .replace('[PLAN_START]', fmt(templateData.planStart))
-            .replace('[IST_START]', fmt(templateData.actualStart))
-            .replace('[ABFAHRT]', fmt(templateData.departure))
-            .replace('[ANKUNFT]', fmt(templateData.arrival))
-            .replace('[PLAN_ENDE]', fmt(templateData.planEnd))
-            .replace('[IST_ENDE]', fmt(templateData.actualEnd));
+            .replaceAll('[PLAN_START]', fmt(templateData.planStart))
+            .replaceAll('[IST_START]', fmt(templateData.actualStart))
+            .replaceAll('[ABFAHRT]', fmt(templateData.departure))
+            .replaceAll('[ANKUNFT]', fmt(templateData.arrival))
+            .replaceAll('[PLAN_ENDE]', fmt(templateData.planEnd))
+            .replaceAll('[IST_ENDE]', fmt(templateData.actualEnd));
+
+        // Apply Stundenzettel Specifics
+        if (selectedTemplate === 'timesheet') {
+            finalBody = finalBody
+                .replaceAll('[DATUM_BERICHT]', stundenzettelReplacements.DATUM_BERICHT)
+                .replaceAll('[EXTRA_TEXT]', stundenzettelReplacements.EXTRA_TEXT)
+                .replaceAll('[TRAVEL_BLOCK]', stundenzettelReplacements.TRAVEL_BLOCK);
+        }
 
         // 7. SAFETY NET: Copy to Clipboard
         try {
@@ -254,6 +350,24 @@ const EmailTemplates = () => {
                         <h3 className="text-xl font-bold text-white">Dienstzeiten</h3>
                         <p className="text-gray-400 text-sm mt-2">Zusammenfassung von Start, Ende & Pause.</p>
                     </div>
+
+                    {/* Card 4: Dienstplan */}
+                    <div onClick={() => setSelectedTemplate('roster')} className="bg-card p-6 rounded-2xl border border-gray-800 hover:border-purple-500/50 cursor-pointer transition group">
+                        <div className="w-12 h-12 rounded-full bg-purple-900/20 flex items-center justify-center text-purple-400 mb-4 group-hover:scale-110 transition">
+                            <CheckCircle size={24} />
+                        </div>
+                        <h3 className="text-xl font-bold text-white">Dienstplan</h3>
+                        <p className="text-gray-400 text-sm mt-2">Bestätigung des aktuellen Dienstplans.</p>
+                    </div>
+
+                    {/* Card 5: Stundenzettel */}
+                    <div onClick={() => setSelectedTemplate('timesheet')} className="bg-card p-6 rounded-2xl border border-gray-800 hover:border-orange-500/50 cursor-pointer transition group">
+                        <div className="w-12 h-12 rounded-full bg-orange-900/20 flex items-center justify-center text-orange-400 mb-4 group-hover:scale-110 transition">
+                            <Mail size={24} />
+                        </div>
+                        <h3 className="text-xl font-bold text-white">Stundenzettel</h3>
+                        <p className="text-gray-400 text-sm mt-2">Fahrtberichte & Anreise/Abreise.</p>
+                    </div>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -310,35 +424,83 @@ const EmailTemplates = () => {
                         </div>
 
                         {/* Legend */}
-                        <div className="text-[10px] text-gray-500 bg-black/20 p-2 rounded border border-gray-800">
-                            <b>Platzhalter:</b> [Briefkopf], [Begrüßung], [Vorname], [Nachname], [ZEIT], [ORT], [ENDE], [PAUSE]
+                        <div className="text-[10px] text-gray-500 bg-black/20 p-2 rounded border border-gray-800 space-y-1">
+                            <div><b>Allgemein:</b> [Briefkopf], [Begrüßung], [Vorname], [Nachname]</div>
+                            <div><b>Briefkopf:</b> [Strasse], [PLZ], [Ort], [Festnetz], [Mobil], [Email]</div>
+                            <div><b>Dienste:</b> [ZEIT], [ORT], [ENDE], [PAUSE], [PLAN_START/ENDE], [IST_START/ENDE]</div>
+                            <div><b>Stundenzettel:</b> [DATUM_BERICHT], [TRAVEL_BLOCK], [EXTRA_TEXT]</div>
                         </div>
 
                         <div className="space-y-4">
                             <div>
-                                <label className="text-xs text-green-400 font-bold block mb-1">Dienstbeginn</label>
+                                <label className="text-xs text-white font-bold block mb-1">Briefkopf (Global)</label>
                                 <textarea
                                     rows={4}
-                                    value={profile.templates?.start || ''}
-                                    onChange={e => setProfile({ ...profile, templates: { ...profile.templates, start: e.target.value } })}
+                                    value={profile.templates?.header || ''}
+                                    onChange={e => setProfile({ ...profile, templates: { ...profile.templates, header: e.target.value } })}
                                     className="w-full bg-dark border border-gray-700 rounded p-2 text-white text-xs font-mono"
                                 />
                             </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs text-green-400 font-bold block mb-1">Dienstbeginn</label>
+                                    <textarea
+                                        rows={4}
+                                        value={profile.templates?.start || ''}
+                                        onChange={e => setProfile({ ...profile, templates: { ...profile.templates, start: e.target.value } })}
+                                        className="w-full bg-dark border border-gray-700 rounded p-2 text-white text-xs font-mono"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-red-400 font-bold block mb-1">Dienstende</label>
+                                    <textarea
+                                        rows={4}
+                                        value={profile.templates?.end || ''}
+                                        onChange={e => setProfile({ ...profile, templates: { ...profile.templates, end: e.target.value } })}
+                                        className="w-full bg-dark border border-gray-700 rounded p-2 text-white text-xs font-mono"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs text-blue-400 font-bold block mb-1">Dienstzeiten</label>
+                                    <textarea
+                                        rows={4}
+                                        value={profile.templates?.times || ''}
+                                        onChange={e => setProfile({ ...profile, templates: { ...profile.templates, times: e.target.value } })}
+                                        className="w-full bg-dark border border-gray-700 rounded p-2 text-white text-xs font-mono"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-purple-400 font-bold block mb-1">Dienstplan bestätigen</label>
+                                    <textarea
+                                        rows={4}
+                                        value={profile.templates?.roster || ''}
+                                        onChange={e => setProfile({ ...profile, templates: { ...profile.templates, roster: e.target.value } })}
+                                        className="w-full bg-dark border border-gray-700 rounded p-2 text-white text-xs font-mono"
+                                    />
+                                </div>
+                            </div>
+
                             <div>
-                                <label className="text-xs text-red-400 font-bold block mb-1">Dienstende</label>
+                                <label className="text-xs text-orange-400 font-bold block mb-1">Stundenzettel (Email Body)</label>
                                 <textarea
                                     rows={4}
-                                    value={profile.templates?.end || ''}
-                                    onChange={e => setProfile({ ...profile, templates: { ...profile.templates, end: e.target.value } })}
+                                    value={profile.templates?.timesheet || ''}
+                                    onChange={e => setProfile({ ...profile, templates: { ...profile.templates, timesheet: e.target.value } })}
                                     className="w-full bg-dark border border-gray-700 rounded p-2 text-white text-xs font-mono"
                                 />
                             </div>
+
                             <div>
-                                <label className="text-xs text-blue-400 font-bold block mb-1">Dienstzeiten</label>
+                                <label className="text-xs text-orange-300 font-bold block mb-1">Stundenzettel (Anreise/Abreise Block)</label>
+                                <div className="text-[10px] text-gray-500 mb-1">Platzhalter: [Datum_AnAbreise], [AnAbreise], [START_ORT], [ZIEL_ORT], [START_ZEIT], [END_ZEIT]</div>
                                 <textarea
                                     rows={4}
-                                    value={profile.templates?.times || ''}
-                                    onChange={e => setProfile({ ...profile, templates: { ...profile.templates, times: e.target.value } })}
+                                    value={profile.templates?.travel || ''}
+                                    onChange={e => setProfile({ ...profile, templates: { ...profile.templates, travel: e.target.value } })}
                                     className="w-full bg-dark border border-gray-700 rounded p-2 text-white text-xs font-mono"
                                 />
                             </div>
@@ -360,6 +522,8 @@ const EmailTemplates = () => {
                             {selectedTemplate === 'start' && 'Dienstbeginn melden'}
                             {selectedTemplate === 'end' && 'Dienstende melden'}
                             {selectedTemplate === 'times' && 'Dienstzeiten melden'}
+                            {selectedTemplate === 'roster' && 'Dienstplan bestätigen'}
+                            {selectedTemplate === 'timesheet' && 'Stundenzettel'}
                         </h2>
 
                         <div className="space-y-3">
@@ -403,7 +567,7 @@ const EmailTemplates = () => {
                             )}
 
                             {/* STANDARD INPUTS (Start/End only) */}
-                            {selectedTemplate !== 'times' && (
+                            {['start', 'end'].includes(selectedTemplate) && (
                                 <>
                                     <div>
                                         <label className="text-xs text-gray-500">Uhrzeit</label>
@@ -414,6 +578,109 @@ const EmailTemplates = () => {
                                         <input type="text" value={templateData.location} onChange={e => setTemplateData({ ...templateData, location: e.target.value.toUpperCase() })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
                                     </div>
                                 </>
+                            )}
+
+                            {/* ROSTER CONFIRMATION (Simple Message) */}
+                            {selectedTemplate === 'roster' && (
+                                <div className="p-4 bg-green-900/20 border border-green-500/30 rounded-xl text-center text-green-400 text-sm">
+                                    <CheckCircle className="mx-auto mb-2" size={20} />
+                                    Bestätigung wird gesendet.
+                                </div>
+                            )}
+
+                            {/* TIMESHEET / STUNDENZETTEL INPUTS */}
+                            {selectedTemplate === 'timesheet' && (
+                                <div className="space-y-4 animate-in fade-in">
+                                    {/* Dates */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase font-bold">Datum Pflicht</label>
+                                            <input type="date" value={templateData.dateRequired} onChange={e => setTemplateData({ ...templateData, dateRequired: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase font-bold">Datum Optional</label>
+                                            <input type="date" value={templateData.dateOptional} onChange={e => setTemplateData({ ...templateData, dateOptional: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                        </div>
+                                    </div>
+
+                                    {/* Travel Toggles */}
+                                    <div className="flex gap-4 p-3 bg-dark/50 rounded-xl border border-gray-700">
+                                        <div className="flex items-center gap-2">
+                                            <input type="checkbox" checked={templateData.travelAnreise} onChange={e => setTemplateData({ ...templateData, travelAnreise: e.target.checked })} className="rounded bg-dark border-gray-500" />
+                                            <span className="text-sm text-white">Anreise</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <input type="checkbox" checked={templateData.travelAbreise} onChange={e => setTemplateData({ ...templateData, travelAbreise: e.target.checked })} className="rounded bg-dark border-gray-500" />
+                                            <span className="text-sm text-white">Abreise</span>
+                                        </div>
+                                    </div>
+
+                                    {/* ANREISE BLOCK */}
+                                    {templateData.travelAnreise && (
+                                        <div className="p-3 bg-blue-900/10 rounded-xl border border-blue-500/30 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-xs font-bold text-blue-400 uppercase">Anreise Daten</h4>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-gray-500 uppercase font-bold">Datum</label>
+                                                <input type="date" value={templateData.anreiseDate} onChange={e => setTemplateData({ ...templateData, anreiseDate: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="text-[10px] text-gray-500 uppercase font-bold">Start (Ort)</label>
+                                                    <input type="text" placeholder="FFU" value={templateData.anreiseStart} onChange={e => setTemplateData({ ...templateData, anreiseStart: e.target.value.toUpperCase() })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] text-gray-500 uppercase font-bold">Ziel (Ort)</label>
+                                                    <input type="text" placeholder="EWAN" value={templateData.anreiseEnd} onChange={e => setTemplateData({ ...templateData, anreiseEnd: e.target.value.toUpperCase() })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="text-[10px] text-gray-500 uppercase font-bold">Startzeit</label>
+                                                    <input type="time" value={templateData.anreiseStartTime} onChange={e => setTemplateData({ ...templateData, anreiseStartTime: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] text-gray-500 uppercase font-bold">Endzeit</label>
+                                                    <input type="time" value={templateData.anreiseEndTime} onChange={e => setTemplateData({ ...templateData, anreiseEndTime: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* ABREISE BLOCK */}
+                                    {templateData.travelAbreise && (
+                                        <div className="p-3 bg-orange-900/10 rounded-xl border border-orange-500/30 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-xs font-bold text-orange-400 uppercase">Abreise Daten</h4>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-gray-500 uppercase font-bold">Datum</label>
+                                                <input type="date" value={templateData.abreiseDate} onChange={e => setTemplateData({ ...templateData, abreiseDate: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="text-[10px] text-gray-500 uppercase font-bold">Start (Ort)</label>
+                                                    <input type="text" placeholder="EWAN" value={templateData.abreiseStart} onChange={e => setTemplateData({ ...templateData, abreiseStart: e.target.value.toUpperCase() })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] text-gray-500 uppercase font-bold">Ziel (Ort)</label>
+                                                    <input type="text" placeholder="FFU" value={templateData.abreiseEnd} onChange={e => setTemplateData({ ...templateData, abreiseEnd: e.target.value.toUpperCase() })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="text-[10px] text-gray-500 uppercase font-bold">Startzeit</label>
+                                                    <input type="time" value={templateData.abreiseStartTime} onChange={e => setTemplateData({ ...templateData, abreiseStartTime: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] text-gray-500 uppercase font-bold">Endzeit</label>
+                                                    <input type="time" value={templateData.abreiseEndTime} onChange={e => setTemplateData({ ...templateData, abreiseEndTime: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
 
                             <div className="flex items-center gap-2 pt-2">
