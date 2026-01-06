@@ -7,13 +7,16 @@ export const useShiftSync = (date, isOnline) => {
     const { getToken } = useAuth();
     const [status, setStatus] = useState('idle'); // idle, syncing, saved, error
     const [lastSync, setLastSync] = useState(null);
+    const [reloadTrigger, setReloadTrigger] = useState(0); // Signal for external updates
 
-    // 1. Live Query: Always listen to the local DB for the UI
+    // 1. Live Query: Always listen to the local DB for the UI (but we use reloadTrigger to hydrate)
     const localShift = useLiveQuery(() => db.shifts.where('date').equals(date).first(), [date]);
 
     // 2. Fetch from Server on Date Change (or First Load)
-    // "Last Write Wins" Strategy
     useEffect(() => {
+        // Trigger initial load signal even if offline, so UI hydrates from DB
+        setReloadTrigger(prev => prev + 1);
+
         if (!isOnline || !date) return;
 
         const fetchServerData = async () => {
@@ -34,21 +37,17 @@ export const useShiftSync = (date, isOnline) => {
                 const data = await res.json();
                 if (!data.shift) return;
 
-                // Server should send `updated_at`
                 const serverTime = new Date(data.shift.updated_at || 0).getTime();
-
-                // Get fresh local copy
                 const currentLocal = await db.shifts.where('date').equals(date).first();
                 const localTime = currentLocal?.updated_at || 0;
 
-                // If Server is newer -> Overwrite Local
                 if (serverTime > localTime) {
                     const shiftData = {
                         ...data.shift,
-                        segments: data.segments || [], // Embed segments
+                        segments: data.segments || [],
                         updated_at: serverTime,
                         server_id: data.shift.id,
-                        dirty: 0, // Clean
+                        dirty: 0,
                         date: date
                     };
 
@@ -58,6 +57,7 @@ export const useShiftSync = (date, isOnline) => {
                         await db.shifts.put(shiftData);
                     }
                     console.log("Synced Down: Server > Local");
+                    setReloadTrigger(prev => prev + 1); // Signal UI to reload
                 }
                 setStatus('idle');
             } catch (e) {
@@ -69,13 +69,12 @@ export const useShiftSync = (date, isOnline) => {
         fetchServerData();
     }, [date, isOnline, getToken]);
 
-    // 3. Auto-Sync Upstream (Push Dirty Records)
+    // 3. Auto-Sync Upstream
     useEffect(() => {
         if (!isOnline) return;
 
         const syncUp = async () => {
             try {
-                // Find ANY dirty record
                 const dirtyRecords = await db.shifts.where('dirty').equals(1).toArray();
                 if (dirtyRecords.length === 0) return;
 
@@ -112,7 +111,6 @@ export const useShiftSync = (date, isOnline) => {
 
                     const responseData = await res.json();
 
-                    // Mark Clean & Update IDs
                     await db.shifts.update(record.id, {
                         dirty: 0,
                         server_id: responseData.id,
@@ -128,7 +126,7 @@ export const useShiftSync = (date, isOnline) => {
             }
         };
 
-        const intervalId = setInterval(syncUp, 15000); // Check every 15 seconds
+        const intervalId = setInterval(syncUp, 15000);
         return () => clearInterval(intervalId);
     }, [isOnline, getToken]);
 
@@ -142,7 +140,7 @@ export const useShiftSync = (date, isOnline) => {
             guest_rides: newData.guestRides,
             waiting_times: newData.waitingTimes,
             updated_at: timestamp,
-            dirty: 1 // Mark for sync
+            dirty: 1
         };
 
         const existing = await db.shifts.where('date').equals(date).first();
@@ -152,10 +150,12 @@ export const useShiftSync = (date, isOnline) => {
             await db.shifts.put(record);
         }
         setStatus('saved');
+        // Do NOT trigger reload here to avoid race condition
     }, [date]);
 
     return {
-        localShift,
+        localShift, // Still returned if needed for other things
+        reloadTrigger, // New signal
         saveLocal,
         status,
         lastSync

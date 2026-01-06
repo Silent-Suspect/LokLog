@@ -33,7 +33,7 @@ const LokLogEditor = () => {
     }, []);
 
     // 1. SYNC & DATA HOOK
-    const { localShift, saveLocal, status, lastSync } = useShiftSync(date, isOnline);
+    const { localShift, saveLocal, status, lastSync, reloadTrigger } = useShiftSync(date, isOnline);
 
     // 2. LOCAL STATE
     const [shift, setShift] = useState({
@@ -49,7 +49,7 @@ const LokLogEditor = () => {
     const [routeInput, setRouteInput] = useState('');
 
     // Load from DB into State
-    // Prevent infinite loop: Only update state if content is different
+    // Reload only when date changes OR server update occurs (reloadTrigger)
     useEffect(() => {
         if (localShift) {
             const safeParse = (val) => {
@@ -58,7 +58,7 @@ const LokLogEditor = () => {
                 try { return JSON.parse(val); } catch (e) { return []; }
             };
 
-            const incomingShift = {
+            setShift({
                 start_time: localShift.start_time || '',
                 end_time: localShift.end_time || '',
                 pause: localShift.pause || 0,
@@ -70,44 +70,24 @@ const LokLogEditor = () => {
                 energy2_end: localShift.energy2_end || '',
                 flags: typeof localShift.flags === 'string' ? JSON.parse(localShift.flags || '{}') : (localShift.flags || {}),
                 notes: localShift.notes || ''
-            };
-            const incomingSegments = localShift.segments || [];
-            const incomingGuest = safeParse(localShift.guest_rides);
-            const incomingWait = safeParse(localShift.waiting_times);
-
-            // Compare with current state
-            const isShiftDiff = JSON.stringify(shift) !== JSON.stringify(incomingShift);
-            const isSegDiff = JSON.stringify(segments) !== JSON.stringify(incomingSegments);
-            const isGuestDiff = JSON.stringify(guestRides) !== JSON.stringify(incomingGuest);
-            const isWaitDiff = JSON.stringify(waitingTimes) !== JSON.stringify(incomingWait);
-
-            if (isShiftDiff || isSegDiff || isGuestDiff || isWaitDiff) {
-                setShift(incomingShift);
-                setSegments(incomingSegments);
-                setGuestRides(incomingGuest);
-                setWaitingTimes(incomingWait);
-            }
+            });
+            setSegments(localShift.segments || []);
+            setGuestRides(safeParse(localShift.guest_rides));
+            setWaitingTimes(safeParse(localShift.waiting_times));
         } else {
-            // Reset if no data found (New Day) and not already empty
-            // Check if already empty to avoid loop?
-            // shift.start_time being empty etc.
-            // Just simple reset is usually fine as empty state produces no ID, so no save?
-            // But let's be safe.
-             const emptyShift = {
+            // Reset if no data found (New Day)
+            setShift({
                 start_time: '', end_time: '', pause: 0,
                 km_start: '', km_end: '',
                 energy1_start: '', energy1_end: '',
                 energy2_start: '', energy2_end: '',
                 flags: {}, notes: ''
-            };
-            if (JSON.stringify(shift) !== JSON.stringify(emptyShift)) {
-                setShift(emptyShift);
-                setSegments([]);
-                setGuestRides([]);
-                setWaitingTimes([]);
-            }
+            });
+            setSegments([]);
+            setGuestRides([]);
+            setWaitingTimes([]);
         }
-    }, [localShift, date]);
+    }, [reloadTrigger, date]);
 
     // 3. AUTO-SAVE (State -> Dexie)
     useEffect(() => {
