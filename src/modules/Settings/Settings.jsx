@@ -1,23 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
+import { useUserSettings } from '../../hooks/useUserSettings';
 import DriveConnect from '../GoogleDrive/DriveConnect';
-import { Settings as SettingsIcon, Download, Save } from 'lucide-react';
+import { Settings as SettingsIcon, Download } from 'lucide-react';
 
 const Settings = () => {
-    // We instantiate the hook here to pass it to DriveConnect
-    // Note: In a real app with Redux/Context, this would be global state.
-    // For now, since settings is a separate page, it's fine.
     const drive = useGoogleDrive();
-
-    // Preference State
-    const [downloadCopy, setDownloadCopy] = useState(
-        localStorage.getItem('loklog_pref_download_copy') !== 'false' // Default true
-    );
+    const { settings, updateSettings } = useUserSettings();
 
     const toggleDownload = () => {
-        const newValue = !downloadCopy;
-        setDownloadCopy(newValue);
-        localStorage.setItem('loklog_pref_download_copy', newValue);
+        updateSettings({ pref_download_copy: !settings.pref_download_copy });
     };
 
     return (
@@ -55,9 +47,9 @@ const Settings = () => {
                         {/* Toggle Switch */}
                         <button
                             onClick={toggleDownload}
-                            className={`w-12 h-6 rounded-full transition relative ${downloadCopy ? 'bg-green-600' : 'bg-gray-700'}`}
+                            className={`w-12 h-6 rounded-full transition relative ${settings.pref_download_copy ? 'bg-green-600' : 'bg-gray-700'}`}
                         >
-                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${downloadCopy ? 'left-7' : 'left-1'}`} />
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.pref_download_copy ? 'left-7' : 'left-1'}`} />
                         </button>
                     </div>
                 )}
