@@ -222,14 +222,21 @@ const EmailTemplates = () => {
                 : "anbei meine Fahrtberichte für den";
 
             const dateStr = !isSingleDay
-                ? `${new Date(templateData.dateRequired).toLocaleDateString('de-DE')} - ${new Date(templateData.dateOptional).toLocaleDateString('de-DE')}`
-                : new Date(templateData.dateRequired).toLocaleDateString('de-DE');
+                ? `${new Date(templateData.dateRequired).toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' })} - ${new Date(templateData.dateOptional).toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' })}`
+                : new Date(templateData.dateRequired).toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' });
             stundenzettelReplacements.DATUM_BERICHT = dateStr;
 
             // B. Optional Intro Text ("sowie...")
             // If any travel is selected, we add the text.
-            const hasTravel = templateData.travelAnreise || templateData.travelAbreise;
-            stundenzettelReplacements.EXTRA_TEXT = hasTravel ? ' (sowie die Angaben zu meiner Anreise/Abreise)' : '';
+            let extraText = '';
+            if (templateData.travelAnreise && templateData.travelAbreise) {
+                extraText = ' (sowie die Angaben zu meiner Anreise/Abreise)';
+            } else if (templateData.travelAnreise) {
+                extraText = ' (sowie die Angaben zu meiner Anreise)';
+            } else if (templateData.travelAbreise) {
+                extraText = ' (sowie die Angaben zu meiner Abreise)';
+            }
+            stundenzettelReplacements.EXTRA_TEXT = extraText;
 
             // C. Travel Blocks
             let travelBlocks = [];
@@ -296,6 +303,8 @@ const EmailTemplates = () => {
         }
 
         // 7. SAFETY NET: Copy to Clipboard
+        // (Disabled per request)
+        /*
         try {
             // Copy the CLEAN text (with normal newlines) to clipboard
             navigator.clipboard.writeText(finalBody);
@@ -304,6 +313,7 @@ const EmailTemplates = () => {
         } catch (err) {
             console.warn("Clipboard failed", err);
         }
+        */
 
         // 8. ENCODING: Manual Split + %0D%0A Join
         // We split by JS newline and rejoin with the explicit hex code for CRLF
