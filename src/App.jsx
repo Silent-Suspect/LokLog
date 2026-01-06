@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { SignedIn, SignedOut, SignIn } from '@clerk/clerk-react';
 import DashboardLayout from './layouts/DashboardLayout';
 import DashboardHome from './modules/dashboard/DashboardHome';
-import SettingsPage from './modules/settings/SettingsPage';
+import SettingsPage from './modules/Settings/Settings';
 import LokLogEditor from './modules/LokLog/LokLogEditor';
 import Decoder from './modules/Decoder/Decoder';
 import ExcelDebug from './modules/Dev/ExcelDebug';

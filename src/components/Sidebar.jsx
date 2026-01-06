@@ -1,4 +1,4 @@
-import { LayoutGrid, Binary, TrainFront, ShieldAlert, User, Mail } from 'lucide-react';
+import { LayoutGrid, Binary, TrainFront, ShieldAlert, Settings, Mail } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAdmin } from '../hooks/useAdmin';
 
@@ -13,7 +13,7 @@ const Sidebar = ({ isOpen }) => {
   ];
 
   const system = [
-    { icon: User, label: 'Profil', path: '#' }, // Placeholder link
+    { icon: Settings, label: 'Einstellungen', path: '/settings' },
   ];
 
   if (isAdmin) {
