@@ -1,4 +1,4 @@
-import { verifyToken } from '../../utils/clerk-verify';
+import { verifyToken } from '../utils/clerk-verify';
 
 export async function onRequest(context) {
     const { request, env } = context;
