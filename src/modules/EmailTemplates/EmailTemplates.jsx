@@ -13,7 +13,7 @@ const EmailTemplates = () => {
         end: `[Briefkopf]\n\n[Begrüßung],\n\nhier mein heutiges Dienstende:\n[ZEIT] Uhr in [ORT].\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
         times: `[Briefkopf]\n\n[Begrüßung],\n\nhier meine heutigen Dienstzeiten:\n\nDienstbeginn Plan: [PLAN_START] Uhr\nDienstbeginn Ist: [IST_START] Uhr\n\nAbfahrt: [ABFAHRT] Uhr\nAnkunft: [ANKUNFT] Uhr\n\nDienstende Plan: [PLAN_ENDE] Uhr\nDienstende Ist: [IST_ENDE] Uhr\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
         roster: `[Briefkopf]\n\n[Begrüßung],\n\nhiermit bestätige ich den aktuellen Dienstplan.\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
-        timesheet: `[Briefkopf]\n\n[Begrüßung],\n\nanbei meine Fahrtberichte für den [DATUM_BERICHT][EXTRA_TEXT].\n\n[TRAVEL_BLOCK]\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
+        timesheet: `[Briefkopf]\n\n[Begrüßung],\n\n[INTRO_TEXT] [DATUM_BERICHT][EXTRA_TEXT].\n\n[TRAVEL_BLOCK]\n\nMit freundlichen Grüßen\n[Vorname] [Nachname]`,
         travel: `[Datum_AnAbreise]\n[AnAbreise]\nvon [START_ORT] nach [ZIEL_ORT]\n[START_ZEIT] Uhr - [END_ZEIT]`
     };
 
@@ -174,7 +174,9 @@ const EmailTemplates = () => {
 
     const generateMailto = () => {
         // 1. Recipient
-        const recipient = selectedTemplate === 'times' ? 'dienstzeiten@dispotf.de' : 'operations@dispotf.de';
+        let recipient = 'operations@dispotf.de';
+        if (selectedTemplate === 'times') recipient = 'dienstzeiten@dispotf.de';
+        if (selectedTemplate === 'roster') recipient = 'personalplanung-dtf@dispotf.de';
 
         // 2. Format Helper
         const fmt = (t) => t ? t.replace(':', '.') : '--.--';
@@ -213,8 +215,13 @@ const EmailTemplates = () => {
         // --- SPECIAL LOGIC FOR STUNDENZETTEL ---
         let stundenzettelReplacements = {};
         if (selectedTemplate === 'timesheet') {
-            // A. Date Range
-            const dateStr = templateData.dateOptional
+            // A. Intro Grammar (Singular/Plural) & Date Range
+            const isSingleDay = !templateData.dateOptional || templateData.dateRequired === templateData.dateOptional;
+            stundenzettelReplacements.INTRO_TEXT = isSingleDay
+                ? "anbei mein Fahrtbericht für den"
+                : "anbei meine Fahrtberichte für den";
+
+            const dateStr = !isSingleDay
                 ? `${new Date(templateData.dateRequired).toLocaleDateString('de-DE')} - ${new Date(templateData.dateOptional).toLocaleDateString('de-DE')}`
                 : new Date(templateData.dateRequired).toLocaleDateString('de-DE');
             stundenzettelReplacements.DATUM_BERICHT = dateStr;
@@ -282,6 +289,7 @@ const EmailTemplates = () => {
         // Apply Stundenzettel Specifics
         if (selectedTemplate === 'timesheet') {
             finalBody = finalBody
+                .replaceAll('[INTRO_TEXT]', stundenzettelReplacements.INTRO_TEXT)
                 .replaceAll('[DATUM_BERICHT]', stundenzettelReplacements.DATUM_BERICHT)
                 .replaceAll('[EXTRA_TEXT]', stundenzettelReplacements.EXTRA_TEXT)
                 .replaceAll('[TRAVEL_BLOCK]', stundenzettelReplacements.TRAVEL_BLOCK);
@@ -428,7 +436,7 @@ const EmailTemplates = () => {
                             <div><b>Allgemein:</b> [Briefkopf], [Begrüßung], [Vorname], [Nachname]</div>
                             <div><b>Briefkopf:</b> [Strasse], [PLZ], [Ort], [Festnetz], [Mobil], [Email]</div>
                             <div><b>Dienste:</b> [ZEIT], [ORT], [ENDE], [PAUSE], [PLAN_START/ENDE], [IST_START/ENDE]</div>
-                            <div><b>Stundenzettel:</b> [DATUM_BERICHT], [TRAVEL_BLOCK], [EXTRA_TEXT]</div>
+                            <div><b>Stundenzettel:</b> [INTRO_TEXT], [DATUM_BERICHT], [TRAVEL_BLOCK], [EXTRA_TEXT]</div>
                         </div>
 
                         <div className="space-y-4">
