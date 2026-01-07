@@ -85,6 +85,26 @@ const EmailTemplates = () => {
         }
     };
 
+    const handleClearTimesheet = () => {
+        setTemplateData(prev => ({
+            ...prev,
+            dateRequired: new Date().toISOString().split('T')[0],
+            dateOptional: '',
+            travelAnreise: false,
+            travelAbreise: false,
+            anreiseDate: '',
+            anreiseStart: '',
+            anreiseEnd: '',
+            anreiseStartTime: '',
+            anreiseEndTime: '',
+            abreiseDate: '',
+            abreiseStart: '',
+            abreiseEnd: '',
+            abreiseStartTime: '',
+            abreiseEndTime: ''
+        }));
+    };
+
     // Template Modal Logic
     const [selectedTemplate, setSelectedTemplate] = useState(null); // 'start', 'end', 'times', 'roster', 'timesheet'
     const [templateData, setTemplateData] = useState({
@@ -185,11 +205,27 @@ const EmailTemplates = () => {
         const fmt = (t) => t ? t.replace(':', '.') : '--.--';
 
         // 3. Subject
-        const subject = selectedTemplate === 'start' ? 'Dienstbeginn' :
-            selectedTemplate === 'end' ? 'Dienstende' :
-            selectedTemplate === 'times' ? 'Dienstzeiten' :
-            selectedTemplate === 'roster' ? 'Dienstplan' :
-            'Fahrtberichte / Stundenzettel';
+        let subject = '';
+        if (selectedTemplate === 'start') subject = 'Dienstbeginn';
+        else if (selectedTemplate === 'end') subject = 'Dienstende';
+        else if (selectedTemplate === 'times') subject = 'Dienstzeiten';
+        else if (selectedTemplate === 'roster') subject = 'Re: aktueller Dienstplan - BITTE BESTÄTIGEN!';
+        else if (selectedTemplate === 'timesheet') {
+            // Dynamic Subject for Stundenzettel
+            const isSingleDay = !templateData.dateOptional || templateData.dateRequired === templateData.dateOptional;
+            const prefix = isSingleDay ? 'Fahrtbericht' : 'Fahrtberichte';
+
+            const datePart = !isSingleDay
+                ? `${new Date(templateData.dateRequired).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} - ${new Date(templateData.dateOptional).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`
+                : new Date(templateData.dateRequired).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+
+            let suffix = '';
+            if (templateData.travelAnreise && templateData.travelAbreise) suffix = ', An- und Abreise';
+            else if (templateData.travelAnreise) suffix = ', Anreise';
+            else if (templateData.travelAbreise) suffix = ', Abreise';
+
+            subject = `${prefix} ${datePart}${suffix}`;
+        }
 
         // 4. Dynamic Greeting (Strict Range)
         const h = new Date().getHours();
@@ -625,6 +661,12 @@ const EmailTemplates = () => {
                             {/* TIMESHEET / STUNDENZETTEL INPUTS */}
                             {selectedTemplate === 'timesheet' && (
                                 <div className="space-y-4 animate-in fade-in">
+                                    <div className="flex justify-end">
+                                        <button onClick={handleClearTimesheet} className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1 border border-red-500/30 px-2 py-1 rounded">
+                                            <RotateCcw size={10} /> Clear Entries
+                                        </button>
+                                    </div>
+
                                     {/* Dates */}
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
