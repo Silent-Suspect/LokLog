@@ -282,7 +282,6 @@ const EmailTemplates = () => {
             stundenzettelReplacements.EXTRA_TEXT = extraText;
 
             // C. Travel Blocks
-            let travelBlocks = [];
             const travelTemplate = profile.templates?.travel || DEFAULT_TEMPLATES.travel;
 
             // Helper to process a travel block
@@ -307,17 +306,22 @@ const EmailTemplates = () => {
 
                 block = block.replaceAll('[START_ZEIT]', fmt(sTime));
                 block = block.replaceAll('[END_ZEIT]', timeStrEnd);
-                return block.trim();
+                return block;
             };
 
-            if (templateData.travelAnreise) {
-                travelBlocks.push(processTravel('Anreise', templateData.anreiseDate, templateData.anreiseStart, templateData.anreiseEnd, templateData.anreiseStartTime, templateData.anreiseEndTime));
-            }
-            if (templateData.travelAbreise) {
-                travelBlocks.push(processTravel('Abreise', templateData.abreiseDate, templateData.abreiseStart, templateData.abreiseEnd, templateData.abreiseStartTime, templateData.abreiseEndTime));
+            let travelBlockFinal = '';
+            if (templateData.travelAnreise && templateData.travelAbreise) {
+                const b1 = processTravel('Anreise', templateData.anreiseDate, templateData.anreiseStart, templateData.anreiseEnd, templateData.anreiseStartTime, templateData.anreiseEndTime);
+                const b2 = processTravel('Abreise', templateData.abreiseDate, templateData.abreiseStart, templateData.abreiseEnd, templateData.abreiseStartTime, templateData.abreiseEndTime);
+                // Ensure exactly one blank line between blocks by trimming the junction
+                travelBlockFinal = b1.trimEnd() + '\n\n' + b2.trimStart();
+            } else if (templateData.travelAnreise) {
+                travelBlockFinal = processTravel('Anreise', templateData.anreiseDate, templateData.anreiseStart, templateData.anreiseEnd, templateData.anreiseStartTime, templateData.anreiseEndTime);
+            } else if (templateData.travelAbreise) {
+                travelBlockFinal = processTravel('Abreise', templateData.abreiseDate, templateData.abreiseStart, templateData.abreiseEnd, templateData.abreiseStartTime, templateData.abreiseEndTime);
             }
 
-            stundenzettelReplacements.TRAVEL_BLOCK = travelBlocks.join('\n');
+            stundenzettelReplacements.TRAVEL_BLOCK = travelBlockFinal;
         }
 
         let finalBody = rawBody
