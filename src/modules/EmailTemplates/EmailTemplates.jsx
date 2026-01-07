@@ -657,7 +657,7 @@ const EmailTemplates = () => {
                                     </div>
                                     <div>
                                         <label className="text-xs text-purple-400 uppercase font-bold">Vorname des Empfängers</label>
-                                        <input type="text" placeholder="z.B. Andre" value={templateData.rosterName} onChange={e => setTemplateData({ ...templateData, rosterName: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                        <input type="text" placeholder="z.B. André" value={templateData.rosterName} onChange={e => setTemplateData({ ...templateData, rosterName: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
                                     </div>
                                 </div>
                             )}
