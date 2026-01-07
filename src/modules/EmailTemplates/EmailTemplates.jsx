@@ -114,7 +114,9 @@ const EmailTemplates = () => {
         abreiseStart: '',
         abreiseEnd: '',
         abreiseStartTime: '',
-        abreiseEndTime: ''
+        abreiseEndTime: '',
+        // Roster
+        rosterName: ''
     });
     const [includeHeader, setIncludeHeader] = useState(true);
     const [copied, setCopied] = useState(false);
@@ -195,6 +197,10 @@ const EmailTemplates = () => {
         if (h >= 3 && h < 11) timeGreeting = 'Guten Morgen';
         else if (h >= 18 || h < 3) timeGreeting = 'Guten Abend';
 
+        if (selectedTemplate === 'roster' && templateData.rosterName) {
+            timeGreeting = `Hallo ${templateData.rosterName}`;
+        }
+
         // 5. Header (New: Template Based)
         let header = '';
         if (includeHeader) {
@@ -223,15 +229,15 @@ const EmailTemplates = () => {
                 : "anbei meine Fahrtberichte für den";
 
             const dateStr = !isSingleDay
-                ? `${new Date(templateData.dateRequired).toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' })} - ${new Date(templateData.dateOptional).toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' })}`
-                : new Date(templateData.dateRequired).toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' });
+                ? `${new Date(templateData.dateRequired).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} - ${new Date(templateData.dateOptional).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`
+                : new Date(templateData.dateRequired).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
             stundenzettelReplacements.DATUM_BERICHT = dateStr;
 
             // B. Optional Intro Text ("sowie...")
             // If any travel is selected, we add the text.
             let extraText = '';
             if (templateData.travelAnreise && templateData.travelAbreise) {
-                extraText = ' (sowie die Angaben zu meiner Anreise/Abreise)';
+                extraText = ' (sowie die Angaben zu meiner An- und Abreise)';
             } else if (templateData.travelAnreise) {
                 extraText = ' (sowie die Angaben zu meiner Anreise)';
             } else if (templateData.travelAbreise) {
@@ -301,6 +307,9 @@ const EmailTemplates = () => {
                 .replaceAll('[DATUM_BERICHT]', stundenzettelReplacements.DATUM_BERICHT)
                 .replaceAll('[EXTRA_TEXT]', stundenzettelReplacements.EXTRA_TEXT)
                 .replaceAll('[TRAVEL_BLOCK]', stundenzettelReplacements.TRAVEL_BLOCK);
+
+            // Clean up double periods (e.g. "06.01.." -> "06.01.")
+            finalBody = finalBody.replace(/\.\./g, '.');
         }
 
         // 7. SAFETY NET: Copy to Clipboard
@@ -601,9 +610,15 @@ const EmailTemplates = () => {
 
                             {/* ROSTER CONFIRMATION (Simple Message) */}
                             {selectedTemplate === 'roster' && (
-                                <div className="p-4 bg-green-900/20 border border-green-500/30 rounded-xl text-center text-green-400 text-sm">
-                                    <CheckCircle className="mx-auto mb-2" size={20} />
-                                    Bestätigung wird gesendet.
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-green-900/20 border border-green-500/30 rounded-xl text-center text-green-400 text-sm">
+                                        <CheckCircle className="mx-auto mb-2" size={20} />
+                                        Bestätigung wird gesendet.
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-purple-400 uppercase font-bold">Vorname des Empfängers</label>
+                                        <input type="text" placeholder="z.B. Andre" value={templateData.rosterName} onChange={e => setTemplateData({ ...templateData, rosterName: e.target.value })} className="w-full bg-dark border border-gray-700 rounded p-2 text-white" />
+                                    </div>
                                 </div>
                             )}
 
