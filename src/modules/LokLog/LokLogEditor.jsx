@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { FileDown, Plus, Trash2, TrainFront, CheckSquare, Calendar, Cloud, RefreshCw } from 'lucide-react';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
@@ -56,10 +56,23 @@ const LokLogEditor = () => {
     const [guestRides, setGuestRides] = useState([]);
     const [waitingTimes, setWaitingTimes] = useState([]);
     const [routeInput, setRouteInput] = useState('');
+    const isInitializedRef = useRef(false);
+    const lastReloadRef = useRef(reloadTrigger);
+
+    // Reset init state when date changes
+    useEffect(() => {
+        isInitializedRef.current = false;
+    }, [date]);
 
     // Load from DB into State
     useEffect(() => {
-        if (localShift) {
+        const isSyncUpdate = reloadTrigger !== lastReloadRef.current;
+        if (isSyncUpdate) lastReloadRef.current = reloadTrigger;
+
+        // Load if we have a server sync update OR we haven't initialized from DB yet
+        const shouldLoad = isSyncUpdate || !isInitializedRef.current;
+
+        if (localShift && shouldLoad) {
             const safeParse = (val) => {
                 if (!val) return [];
                 if (Array.isArray(val)) return val;
@@ -82,7 +95,10 @@ const LokLogEditor = () => {
             setSegments(localShift.segments || []);
             setGuestRides(safeParse(localShift.guest_rides));
             setWaitingTimes(safeParse(localShift.waiting_times));
-        } else {
+
+            // Mark as initialized so subsequent local Dexie updates don't overwrite state
+            isInitializedRef.current = true;
+        } else if (!localShift && shouldLoad) {
             // Reset if no data found (New Day)
             setShift({
                 start_time: '', end_time: '', pause: 0,
@@ -95,8 +111,7 @@ const LokLogEditor = () => {
             setGuestRides([]);
             setWaitingTimes([]);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [reloadTrigger, date]);
+    }, [localShift, reloadTrigger, date]);
 
     // 3. AUTO-SAVE (State -> Dexie)
     useEffect(() => {
