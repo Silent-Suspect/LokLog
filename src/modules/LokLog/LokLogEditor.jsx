@@ -3,6 +3,7 @@ import { useUser } from '@clerk/clerk-react';
 import { FileDown, Plus, Trash2, TrainFront, CheckSquare, Calendar, Cloud, RefreshCw } from 'lucide-react';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
 import { useUserSettings } from '../../hooks/useUserSettings';
+import { db } from '../../db/loklogDb';
 
 // New Modules
 import { useShiftSync } from './hooks/useShiftSync';
@@ -42,7 +43,7 @@ const LokLogEditor = () => {
     }, []);
 
     // 1. SYNC & DATA HOOK
-    const { localShift, saveLocal, status, reloadTrigger } = useShiftSync(date, isOnline);
+    const { saveLocal, status, reloadTrigger } = useShiftSync(date, isOnline);
 
     // 2. LOCAL STATE
     const [shift, setShift] = useState({
@@ -56,62 +57,62 @@ const LokLogEditor = () => {
     const [guestRides, setGuestRides] = useState([]);
     const [waitingTimes, setWaitingTimes] = useState([]);
     const [routeInput, setRouteInput] = useState('');
-    const isInitializedRef = useRef(false);
-    const lastReloadRef = useRef(reloadTrigger);
-
-    // Reset init state when date changes
-    useEffect(() => {
-        isInitializedRef.current = false;
-    }, [date]);
 
     // Load from DB into State
     useEffect(() => {
-        const isSyncUpdate = reloadTrigger !== lastReloadRef.current;
-        if (isSyncUpdate) lastReloadRef.current = reloadTrigger;
+        let isActive = true;
 
-        // Load if we have a server sync update OR we haven't initialized from DB yet
-        const shouldLoad = isSyncUpdate || !isInitializedRef.current;
+        const loadData = async () => {
+            try {
+                const data = await db.shifts.where('date').equals(date).first();
 
-        if (localShift && shouldLoad) {
-            const safeParse = (val) => {
-                if (!val) return [];
-                if (Array.isArray(val)) return val;
-                try { return JSON.parse(val); } catch { return []; }
-            };
+                if (isActive) {
+                    if (data) {
+                        const safeParse = (val) => {
+                            if (!val) return [];
+                            if (Array.isArray(val)) return val;
+                            try { return JSON.parse(val); } catch { return []; }
+                        };
 
-            setShift({
-                start_time: localShift.start_time || '',
-                end_time: localShift.end_time || '',
-                pause: localShift.pause || 0,
-                km_start: localShift.km_start || '',
-                km_end: localShift.km_end || '',
-                energy1_start: localShift.energy1_start || '',
-                energy1_end: localShift.energy1_end || '',
-                energy2_start: localShift.energy2_start || '',
-                energy2_end: localShift.energy2_end || '',
-                flags: typeof localShift.flags === 'string' ? JSON.parse(localShift.flags || '{}') : (localShift.flags || {}),
-                notes: localShift.notes || ''
-            });
-            setSegments(localShift.segments || []);
-            setGuestRides(safeParse(localShift.guest_rides));
-            setWaitingTimes(safeParse(localShift.waiting_times));
+                        setShift({
+                            start_time: data.start_time || '',
+                            end_time: data.end_time || '',
+                            pause: data.pause || 0,
+                            km_start: data.km_start || '',
+                            km_end: data.km_end || '',
+                            energy1_start: data.energy1_start || '',
+                            energy1_end: data.energy1_end || '',
+                            energy2_start: data.energy2_start || '',
+                            energy2_end: data.energy2_end || '',
+                            flags: typeof data.flags === 'string' ? JSON.parse(data.flags || '{}') : (data.flags || {}),
+                            notes: data.notes || ''
+                        });
+                        setSegments(data.segments || []);
+                        setGuestRides(safeParse(data.guest_rides));
+                        setWaitingTimes(safeParse(data.waiting_times));
+                    } else {
+                        // Reset if no data found (New Day)
+                        setShift({
+                            start_time: '', end_time: '', pause: 0,
+                            km_start: '', km_end: '',
+                            energy1_start: '', energy1_end: '',
+                            energy2_start: '', energy2_end: '',
+                            flags: {}, notes: ''
+                        });
+                        setSegments([]);
+                        setGuestRides([]);
+                        setWaitingTimes([]);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load shift", err);
+            }
+        };
 
-            // Mark as initialized so subsequent local Dexie updates don't overwrite state
-            isInitializedRef.current = true;
-        } else if (!localShift && shouldLoad) {
-            // Reset if no data found (New Day)
-            setShift({
-                start_time: '', end_time: '', pause: 0,
-                km_start: '', km_end: '',
-                energy1_start: '', energy1_end: '',
-                energy2_start: '', energy2_end: '',
-                flags: {}, notes: ''
-            });
-            setSegments([]);
-            setGuestRides([]);
-            setWaitingTimes([]);
-        }
-    }, [localShift, reloadTrigger, date]);
+        loadData();
+
+        return () => { isActive = false; };
+    }, [date, reloadTrigger]);
 
     // 3. AUTO-SAVE (State -> Dexie)
     useEffect(() => {
