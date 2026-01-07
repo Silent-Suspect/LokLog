@@ -64,7 +64,7 @@ const appendWorksheet = (sourceSheet, targetSheet, offsetRow) => {
                         tgtMaster.style = JSON.parse(JSON.stringify(srcMaster.style));
                     }
                 }
-            } catch (e) { console.warn("Skipping merge:", range); }
+            } catch { console.warn("Skipping merge:", range); }
         });
     }
 };
@@ -204,7 +204,7 @@ export const generateShiftExcel = async (data, user, templates, options = {}) =>
         cell.value = line;
         cell.style = baseStyle;
         cell.alignment = { ...baseStyle.alignment, wrapText: true };
-        try { ws.mergeCells(`A${currentRow}:N${currentRow}`); } catch (e) { }
+        try { ws.mergeCells(`A${currentRow}:N${currentRow}`); } catch { /* ignore merge error */ }
         ws.getCell(currentRow, 15).border = { left: { style: 'medium' } };
         lastCommentRow = currentRow;
     });
@@ -243,8 +243,8 @@ export const generateShiftExcel = async (data, user, templates, options = {}) =>
 
     // 7. Cleanup & Formulas
     const finalContentRow = appendStartRow + (wsB.rowCount || 15);
-    try { ws.spliceRows(finalContentRow + 2, 500); } catch (e) { }
-    try { ws.spliceColumns(16, 20); } catch (e) { }
+    try { ws.spliceRows(finalContentRow + 2, 500); } catch { /* ignore splice error */ }
+    try { ws.spliceColumns(16, 20); } catch { /* ignore splice error */ }
 
     const sumRowIdx = appendStartRow + 7;
     const rangeStart = appendStartRow + 1;

@@ -1,4 +1,4 @@
-import { createClerkClient, verifyToken } from '@clerk/backend';
+import { verifyClerkToken } from '../utils/clerk-verify';
 
 // Helper: Standard Response Headers
 const corsHeaders = {
@@ -25,9 +25,8 @@ export async function onRequestGet(context) {
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return new Response('Unauthorized', { status: 401, headers: corsHeaders });
         }
-        const token = authHeader.split(' ')[1];
-        const verifiedToken = await verifyToken(token, { secretKey: context.env.CLERK_SECRET_KEY });
-        const userId = verifiedToken.sub;
+        const token = authHeader.replace('Bearer ', '');
+        const userId = await verifyClerkToken(token, context.env);
 
         // Fetch Shift
         const shift = await context.env.DB.prepare(
@@ -57,18 +56,58 @@ export async function onRequestPut(context) {
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return new Response('Unauthorized', { status: 401, headers: corsHeaders });
         }
-        const token = authHeader.split(' ')[1];
-        const verifiedToken = await verifyToken(token, { secretKey: context.env.CLERK_SECRET_KEY });
-        const userId = verifiedToken.sub;
+        const token = authHeader.replace('Bearer ', '');
+        const userId = await verifyClerkToken(token, context.env);
 
         const data = await context.request.json();
         const { shift, segments } = data; // shift object, segments array
 
         if (!shift || !shift.date) return new Response("Invalid data", { status: 400, headers: corsHeaders });
 
-        const shiftId = shift.id || crypto.randomUUID();
+        // --- SAFETY NET (V2) ---
+        // If we are wiping segments (segments = empty), we MUST ensure it's intentional.
+        // We check for a special `force_clear` flag in the payload.
+        // Exception: If the DB has no segments anyway, wiping is fine (idempotent).
 
+        // 1. Fetch Existing State
+        const existingShift = await context.env.DB.prepare(
+            "SELECT * FROM shifts WHERE user_id = ? AND date = ?"
+        ).bind(userId, shift.date).first();
+
+        let existingSegments = [];
+        if (existingShift) {
+            const { results } = await context.env.DB.prepare(
+                "SELECT * FROM segments WHERE shift_id = ?"
+            ).bind(existingShift.id).all();
+            existingSegments = results;
+        }
+
+        const isWipingData = existingSegments.length > 0 && (!segments || segments.length === 0);
+        const isForceClear = data.force_clear === true;
+
+        if (isWipingData && !isForceClear) {
+            return new Response("Safety Block: Cannot wipe existing segments without force_clear flag.", {
+                status: 400,
+                headers: corsHeaders
+            });
+        }
+
+        const shiftId = shift.id || crypto.randomUUID();
         const batch = [];
+
+        // --- HISTORY BACKUP ---
+        // Archive only if we are overwriting actual data (segments > 0 or shift exists)
+        if (existingShift && (existingSegments.length > 0 || isWipingData)) {
+            const backupData = JSON.stringify({
+                shift: existingShift,
+                segments: existingSegments
+            });
+
+            batch.push(context.env.DB.prepare(`
+                INSERT INTO shifts_history (shift_id, user_id, date, backup_json, archived_at)
+                VALUES (?, ?, ?, ?, ?)
+            `).bind(existingShift.id, userId, shift.date, backupData, Date.now()));
+        }
 
         // 1. Insert/Replace Shift
         batch.push(context.env.DB.prepare(`
@@ -131,9 +170,8 @@ export async function onRequestDelete(context) {
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return new Response('Unauthorized', { status: 401, headers: corsHeaders });
         }
-        const token = authHeader.split(' ')[1];
-        const verifiedToken = await verifyToken(token, { secretKey: context.env.CLERK_SECRET_KEY });
-        const userId = verifiedToken.sub;
+        const token = authHeader.replace('Bearer ', '');
+        const userId = await verifyClerkToken(token, context.env);
 
         // 1. Find Shift ID
         const shift = await context.env.DB.prepare(

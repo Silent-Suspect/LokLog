@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../db/loklogDb';
 import { useAuth } from '@clerk/clerk-react';
@@ -95,7 +95,8 @@ export const useShiftSync = (date, isOnline) => {
                             comments: record.notes,
                             updated_at: record.updated_at
                         },
-                        segments: record.segments || []
+                        segments: record.segments || [],
+                        force_clear: !!record.force_clear
                     };
 
                     const res = await fetch('/api/shifts', {
@@ -113,6 +114,7 @@ export const useShiftSync = (date, isOnline) => {
 
                     await db.shifts.update(record.id, {
                         dirty: 0,
+                        force_clear: false, // Reset force flag after successful sync
                         server_id: responseData.id,
                         updated_at: new Date(responseData.updated_at || Date.now()).getTime()
                     });
@@ -131,7 +133,7 @@ export const useShiftSync = (date, isOnline) => {
     }, [isOnline, getToken]);
 
     // 4. Save Function (Local)
-    const saveLocal = useCallback(async (newData) => {
+    const saveLocal = useCallback(async (newData, options = {}) => {
         const timestamp = Date.now();
         const record = {
             date,
@@ -142,6 +144,10 @@ export const useShiftSync = (date, isOnline) => {
             updated_at: timestamp,
             dirty: 1
         };
+
+        if (options.force_clear) {
+            record.force_clear = true;
+        }
 
         const existing = await db.shifts.where('date').equals(date).first();
         if (existing) {
