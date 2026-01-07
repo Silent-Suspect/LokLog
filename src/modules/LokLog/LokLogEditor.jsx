@@ -172,6 +172,20 @@ const LokLogEditor = () => {
             setSegments([]);
             setGuestRides([]);
             setWaitingTimes([]);
+
+            // Force Clear logic to bypass backend safety net
+            saveLocal({
+                shift: {
+                    start_time: '', end_time: '', pause: 0,
+                    km_start: '', km_end: '',
+                    energy1_start: '', energy1_end: '',
+                    energy2_start: '', energy2_end: '',
+                    flags: {}, notes: ''
+                },
+                segments: [],
+                guestRides: [],
+                waitingTimes: []
+            }, { force_clear: true });
         }
     };
 

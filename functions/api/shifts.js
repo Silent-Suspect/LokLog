@@ -64,32 +64,40 @@ export async function onRequestPut(context) {
 
         if (!shift || !shift.date) return new Response("Invalid data", { status: 400, headers: corsHeaders });
 
-        // --- SAFETY NET ---
-        // If "Normal Service" is checked, but no segments are provided, reject the update.
-        // This prevents accidental wiping of the schedule.
-        const flags = shift.flags || {};
-        if (flags['Normaldienst'] && (!segments || segments.length === 0)) {
-            return new Response("Safety Block: Cannot clear segments while 'Normaldienst' is active.", {
+        // --- SAFETY NET (V2) ---
+        // If we are wiping segments (segments = empty), we MUST ensure it's intentional.
+        // We check for a special `force_clear` flag in the payload.
+        // Exception: If the DB has no segments anyway, wiping is fine (idempotent).
+
+        // 1. Fetch Existing State
+        const existingShift = await context.env.DB.prepare(
+            "SELECT * FROM shifts WHERE user_id = ? AND date = ?"
+        ).bind(userId, shift.date).first();
+
+        let existingSegments = [];
+        if (existingShift) {
+            const { results } = await context.env.DB.prepare(
+                "SELECT * FROM segments WHERE shift_id = ?"
+            ).bind(existingShift.id).all();
+            existingSegments = results;
+        }
+
+        const isWipingData = existingSegments.length > 0 && (!segments || segments.length === 0);
+        const isForceClear = data.force_clear === true;
+
+        if (isWipingData && !isForceClear) {
+            return new Response("Safety Block: Cannot wipe existing segments without force_clear flag.", {
                 status: 400,
                 headers: corsHeaders
             });
         }
 
         const shiftId = shift.id || crypto.randomUUID();
-
         const batch = [];
 
         // --- HISTORY BACKUP ---
-        // Fetch existing state before overwriting
-        const existingShift = await context.env.DB.prepare(
-            "SELECT * FROM shifts WHERE user_id = ? AND date = ?"
-        ).bind(userId, shift.date).first();
-
-        if (existingShift) {
-            const { results: existingSegments } = await context.env.DB.prepare(
-                "SELECT * FROM segments WHERE shift_id = ?"
-            ).bind(existingShift.id).all();
-
+        // Archive only if we are overwriting actual data (segments > 0 or shift exists)
+        if (existingShift && (existingSegments.length > 0 || isWipingData)) {
             const backupData = JSON.stringify({
                 shift: existingShift,
                 segments: existingSegments
