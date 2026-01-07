@@ -1,4 +1,4 @@
-import { verifyClerkToken } from '../../utils/clerk-verify';
+import { verifyClerkToken } from '../utils/clerk-verify';
 
 // Helper: Standard Response Headers
 const corsHeaders = {
