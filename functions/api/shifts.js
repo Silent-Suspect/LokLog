@@ -64,9 +64,42 @@ export async function onRequestPut(context) {
 
         if (!shift || !shift.date) return new Response("Invalid data", { status: 400, headers: corsHeaders });
 
+        // --- SAFETY NET ---
+        // If "Normal Service" is checked, but no segments are provided, reject the update.
+        // This prevents accidental wiping of the schedule.
+        const flags = shift.flags || {};
+        if (flags['Normaldienst'] && (!segments || segments.length === 0)) {
+            return new Response("Safety Block: Cannot clear segments while 'Normaldienst' is active.", {
+                status: 400,
+                headers: corsHeaders
+            });
+        }
+
         const shiftId = shift.id || crypto.randomUUID();
 
         const batch = [];
+
+        // --- HISTORY BACKUP ---
+        // Fetch existing state before overwriting
+        const existingShift = await context.env.DB.prepare(
+            "SELECT * FROM shifts WHERE user_id = ? AND date = ?"
+        ).bind(userId, shift.date).first();
+
+        if (existingShift) {
+            const { results: existingSegments } = await context.env.DB.prepare(
+                "SELECT * FROM segments WHERE shift_id = ?"
+            ).bind(existingShift.id).all();
+
+            const backupData = JSON.stringify({
+                shift: existingShift,
+                segments: existingSegments
+            });
+
+            batch.push(context.env.DB.prepare(`
+                INSERT INTO shifts_history (shift_id, user_id, date, backup_json, archived_at)
+                VALUES (?, ?, ?, ?, ?)
+            `).bind(existingShift.id, userId, shift.date, backupData, Date.now()));
+        }
 
         // 1. Insert/Replace Shift
         batch.push(context.env.DB.prepare(`
