@@ -1,4 +1,4 @@
-import { createClerkClient, verifyToken } from '@clerk/backend';
+import { verifyClerkToken } from '../../utils/clerk-verify';
 
 // Helper: Standard Response Headers
 const corsHeaders = {
@@ -25,9 +25,8 @@ export async function onRequestGet(context) {
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return new Response('Unauthorized', { status: 401, headers: corsHeaders });
         }
-        const token = authHeader.split(' ')[1];
-        const verifiedToken = await verifyToken(token, { secretKey: context.env.CLERK_SECRET_KEY });
-        const userId = verifiedToken.sub;
+        const token = authHeader.replace('Bearer ', '');
+        const userId = await verifyClerkToken(token, context.env);
 
         // Fetch Shift
         const shift = await context.env.DB.prepare(
@@ -57,9 +56,8 @@ export async function onRequestPut(context) {
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return new Response('Unauthorized', { status: 401, headers: corsHeaders });
         }
-        const token = authHeader.split(' ')[1];
-        const verifiedToken = await verifyToken(token, { secretKey: context.env.CLERK_SECRET_KEY });
-        const userId = verifiedToken.sub;
+        const token = authHeader.replace('Bearer ', '');
+        const userId = await verifyClerkToken(token, context.env);
 
         const data = await context.request.json();
         const { shift, segments } = data; // shift object, segments array
@@ -131,9 +129,8 @@ export async function onRequestDelete(context) {
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return new Response('Unauthorized', { status: 401, headers: corsHeaders });
         }
-        const token = authHeader.split(' ')[1];
-        const verifiedToken = await verifyToken(token, { secretKey: context.env.CLERK_SECRET_KEY });
-        const userId = verifiedToken.sub;
+        const token = authHeader.replace('Bearer ', '');
+        const userId = await verifyClerkToken(token, context.env);
 
         // 1. Find Shift ID
         const shift = await context.env.DB.prepare(
