@@ -4,24 +4,47 @@ export async function onRequestPost(context) {
     try {
         const { searchParams } = new URL(context.request.url);
         const date = searchParams.get('date');
+        const targetUserId = searchParams.get('userId');
 
-        if (!date) return new Response("Missing date", { status: 400 });
+        if (!date || !targetUserId) return new Response("Missing date or userId", { status: 400 });
 
-        // Auth
+        // 1. Auth Check (Token Signature)
         const authHeader = context.request.headers.get('Authorization');
         if (!authHeader) return new Response("Unauthorized", { status: 401 });
         const token = authHeader.replace('Bearer ', '');
-        const userId = await verifyClerkToken(token, context.env);
+        const requesterId = await verifyClerkToken(token, context.env);
 
-        // Find latest valid history
+        // 2. Admin Role Check (via Clerk API)
+        // We use fetch directly to avoid @clerk/backend dependency issues in Workers
+        const clerkRes = await fetch(`https://api.clerk.com/v1/users/${requesterId}`, {
+            headers: {
+                'Authorization': `Bearer ${context.env.CLERK_SECRET_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!clerkRes.ok) {
+            console.error("Clerk API Error:", await clerkRes.text());
+            return new Response("Auth Verification Failed", { status: 500 });
+        }
+
+        const requesterProfile = await clerkRes.json();
+        const role = requesterProfile.public_metadata?.role;
+
+        if (role !== 'admin') {
+            return new Response("Forbidden: Admins only", { status: 403 });
+        }
+
+        // 3. Restore Logic
+        // Find latest valid history for TARGET user
         const history = await context.env.DB.prepare(`
             SELECT * FROM shifts_history
             WHERE user_id = ? AND date = ?
             ORDER BY archived_at DESC
-        `).bind(userId, date).all();
+        `).bind(targetUserId, date).all();
 
         if (!history.results || history.results.length === 0) {
-            return new Response("No history found", { status: 404 });
+            return new Response("No history found for this user/date", { status: 404 });
         }
 
         // Find first entry with segments
@@ -47,7 +70,13 @@ export async function onRequestPost(context) {
         const { shift, segments } = parsedData;
         const batch = [];
 
-        // 1. Restore Shift
+        // 3a. Restore Shift
+        // Important: Use targetUserId, not requesterId!
+        // We keep the original shift ID to maintain continuity?
+        // Or if we replace, we should ensure the ID matches what's in the backup.
+        // The backup `shift` object has `id` and `user_id`.
+        // We should respect the backup's ID.
+
         batch.push(context.env.DB.prepare(`
             INSERT OR REPLACE INTO shifts (
                 id, user_id, date, start_time, end_time,
@@ -58,7 +87,7 @@ export async function onRequestPost(context) {
                 guest_rides, waiting_times, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-            shift.id, userId, shift.date, shift.start_time, shift.end_time,
+            shift.id, targetUserId, shift.date, shift.start_time, shift.end_time,
             shift.km_start, shift.km_end,
             shift.energy_18_start, shift.energy_18_end,
             shift.energy_28_start, shift.energy_28_end,
@@ -67,7 +96,7 @@ export async function onRequestPost(context) {
             Date.now() // Update timestamp to trigger sync down
         ));
 
-        // 2. Restore Segments
+        // 3b. Restore Segments
         batch.push(context.env.DB.prepare("DELETE FROM segments WHERE shift_id = ?").bind(shift.id));
 
         if (segments && segments.length > 0) {
@@ -90,11 +119,13 @@ export async function onRequestPost(context) {
 
         return Response.json({
             success: true,
+            restored_for: targetUserId,
             restored_from: targetEntry.archived_at,
             segments_count: segments.length
         });
 
     } catch (err) {
+        console.error("Restore Error:", err);
         return new Response(JSON.stringify({ error: err.message }), { status: 500 });
     }
 }
