@@ -288,7 +288,7 @@ const EmailTemplates = () => {
             const processTravel = (type, date, start, end, sTime, eTime) => {
                 let block = travelTemplate;
                 // Basic
-                block = block.replaceAll('[Datum_AnAbreise]', date ? new Date(date).toLocaleDateString('de-DE') : 'DD.MM.YYYY');
+                block = block.replaceAll('[Datum_AnAbreise]', date ? new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'DD.MM.YYYY');
                 block = block.replaceAll('[AnAbreise]', type);
                 block = block.replaceAll('[START_ORT]', start || 'START');
                 block = block.replaceAll('[ZIEL_ORT]', end || 'ZIEL');
