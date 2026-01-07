@@ -273,11 +273,11 @@ const EmailTemplates = () => {
             // If any travel is selected, we add the text.
             let extraText = '';
             if (templateData.travelAnreise && templateData.travelAbreise) {
-                extraText = ' (sowie die Angaben zu meiner An- und Abreise)';
+                extraText = ' sowie die Angaben zu meiner An- und Abreise';
             } else if (templateData.travelAnreise) {
-                extraText = ' (sowie die Angaben zu meiner Anreise)';
+                extraText = ' sowie die Angaben zu meiner Anreise';
             } else if (templateData.travelAbreise) {
-                extraText = ' (sowie die Angaben zu meiner Abreise)';
+                extraText = ' sowie die Angaben zu meiner Abreise';
             }
             stundenzettelReplacements.EXTRA_TEXT = extraText;
 
@@ -307,7 +307,7 @@ const EmailTemplates = () => {
 
                 block = block.replaceAll('[START_ZEIT]', fmt(sTime));
                 block = block.replaceAll('[END_ZEIT]', timeStrEnd);
-                return block;
+                return block.trim();
             };
 
             if (templateData.travelAnreise) {
@@ -317,7 +317,7 @@ const EmailTemplates = () => {
                 travelBlocks.push(processTravel('Abreise', templateData.abreiseDate, templateData.abreiseStart, templateData.abreiseEnd, templateData.abreiseStartTime, templateData.abreiseEndTime));
             }
 
-            stundenzettelReplacements.TRAVEL_BLOCK = travelBlocks.join('\n\n');
+            stundenzettelReplacements.TRAVEL_BLOCK = travelBlocks.join('\n');
         }
 
         let finalBody = rawBody
