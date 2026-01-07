@@ -57,10 +57,12 @@ const LokLogEditor = () => {
     const [guestRides, setGuestRides] = useState([]);
     const [waitingTimes, setWaitingTimes] = useState([]);
     const [routeInput, setRouteInput] = useState('');
+    const isLoadedRef = useRef(false);
 
     // Load from DB into State
     useEffect(() => {
         let isActive = true;
+        isLoadedRef.current = false;
 
         const loadData = async () => {
             try {
@@ -103,6 +105,7 @@ const LokLogEditor = () => {
                         setGuestRides([]);
                         setWaitingTimes([]);
                     }
+                    isLoadedRef.current = true;
                 }
             } catch (err) {
                 console.error("Failed to load shift", err);
@@ -117,7 +120,7 @@ const LokLogEditor = () => {
     // 3. AUTO-SAVE (State -> Dexie)
     useEffect(() => {
         const timeoutId = setTimeout(() => {
-            if (localShift === undefined && status === 'idle') return; // Wait for initial load
+            if (!isLoadedRef.current && status === 'idle') return; // Wait for initial load
 
             const currentData = {
                 shift,
