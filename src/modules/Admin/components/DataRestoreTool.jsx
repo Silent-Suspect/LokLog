@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import { RotateCcw, AlertOctagon } from 'lucide-react';
+import { RotateCcw, AlertOctagon, CalendarClock } from 'lucide-react';
 
 const DataRestoreTool = ({ users }) => {
     const { getToken } = useAuth();
@@ -8,6 +8,29 @@ const DataRestoreTool = ({ users }) => {
     const [targetDate, setTargetDate] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
+    const [historyList, setHistoryList] = useState([]);
+
+    // Load available backups when user is selected
+    useEffect(() => {
+        if (!targetUser) {
+            setHistoryList([]);
+            return;
+        }
+
+        const fetchHistory = async () => {
+            try {
+                const token = await getToken();
+                const res = await fetch(`/api/admin/history?userId=${targetUser}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                setHistoryList(data.history || []);
+            } catch (e) {
+                console.error("Failed to load history", e);
+            }
+        };
+        fetchHistory();
+    }, [targetUser, getToken]);
 
     const handleRestore = async () => {
         if (!targetUser || !targetDate) return;
@@ -83,6 +106,33 @@ const DataRestoreTool = ({ users }) => {
                 <div className={`p-4 rounded-xl border flex items-center gap-3 ${result.type === 'success' ? 'bg-green-900/20 border-green-900 text-green-400' : 'bg-red-900/20 border-red-900 text-red-400'}`}>
                     <AlertOctagon size={18} />
                     <span className="text-sm font-mono">{result.msg}</span>
+                </div>
+            )}
+
+            {/* Backup List */}
+            {targetUser && (
+                <div className="mt-4 border-t border-gray-700 pt-4">
+                    <h4 className="text-sm font-bold text-gray-400 mb-3 flex items-center gap-2">
+                        <CalendarClock size={16} /> Available Backups
+                    </h4>
+                    {historyList.length === 0 ? (
+                        <p className="text-xs text-gray-500 italic">No backup history found for this user.</p>
+                    ) : (
+                        <div className="max-h-48 overflow-y-auto space-y-1">
+                            {historyList.map((h, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setTargetDate(h.date)}
+                                    className={`w-full text-left px-3 py-2 rounded-lg text-sm flex justify-between items-center transition ${targetDate === h.date ? 'bg-blue-900/30 text-blue-300 border border-blue-800' : 'bg-dark/50 text-gray-300 hover:bg-dark'}`}
+                                >
+                                    <span className="font-mono">{h.date}</span>
+                                    <span className="text-xs text-gray-500">
+                                        {h.count} versions • Last: {new Date(h.latest_ts).toLocaleTimeString()}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
