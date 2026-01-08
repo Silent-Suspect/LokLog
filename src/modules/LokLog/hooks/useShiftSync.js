@@ -32,7 +32,18 @@ export const useShiftSync = (date, isOnline) => {
                     return;
                 }
 
-                if (!res.ok) throw new Error('Fetch failed');
+                if (!res.ok) {
+                    // Try to parse error details
+                    let errorDetails = 'Unknown error';
+                    try {
+                        const errorJson = await res.json();
+                        errorDetails = JSON.stringify(errorJson);
+                    } catch {
+                        errorDetails = await res.text();
+                    }
+                    console.error("Fetch Failed Detail:", errorDetails);
+                    throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
+                }
 
                 const data = await res.json();
                 if (!data.shift) return;
@@ -108,7 +119,18 @@ export const useShiftSync = (date, isOnline) => {
                         body: JSON.stringify(payload)
                     });
 
-                    if (!res.ok) throw new Error(`Sync failed for ${record.date}`);
+                    if (!res.ok) {
+                        // Try to parse error details
+                        let errorDetails = 'Unknown error';
+                        try {
+                            const errorJson = await res.json();
+                            errorDetails = JSON.stringify(errorJson);
+                        } catch {
+                            errorDetails = await res.text();
+                        }
+                        console.error(`Sync Failed Detail for ${record.date}:`, errorDetails);
+                        throw new Error(`Sync failed: ${res.status} ${res.statusText}`);
+                    }
 
                     const responseData = await res.json();
 
