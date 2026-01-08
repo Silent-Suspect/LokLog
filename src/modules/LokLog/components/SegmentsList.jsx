@@ -2,17 +2,29 @@ import { Trash2, ArrowRight } from 'lucide-react';
 
 const SegmentsList = ({ segments, setSegments }) => {
 
+    const safeSegments = Array.isArray(segments) ? segments : [];
+
     const updateSegment = (index, field, value) => {
-        setSegments(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+        setSegments(prev => {
+            const list = Array.isArray(prev) ? prev : [];
+            return list.map((item, i) => i === index ? { ...item, [field]: value } : item);
+        });
     };
 
     const removeSegment = (index) => {
-        setSegments(prev => prev.filter((_, i) => i !== index));
+        setSegments(prev => {
+            const list = Array.isArray(prev) ? prev : [];
+            return list.filter((_, i) => i !== index);
+        });
     };
+
+    if (safeSegments.length === 0 && segments && !Array.isArray(segments)) {
+        return <div className="text-red-500 p-4 border border-red-500 rounded">Error: Invalid Segments Data</div>;
+    }
 
     return (
         <div className="space-y-3">
-            {segments.map((seg, i) => (
+            {safeSegments.map((seg, i) => (
                 <div key={i} className="bg-card p-4 rounded-xl border border-gray-800 flex flex-col gap-3 group relative hover:border-gray-700 transition">
                     <button
                         onClick={() => removeSegment(i)}
