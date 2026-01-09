@@ -42,7 +42,7 @@ const ShiftFlags = ({ flags, setFlags }) => {
                     type="text"
                     value={flags.param_streckenkunde || ''}
                     onChange={e => updateParam('param_streckenkunde', e.target.value)}
-                    placeholder="Details Streckenkunde..."
+                    placeholder="Name Tf"
                     className="w-full mt-1 bg-dark border border-gray-700 rounded p-2 text-white text-sm"
                 />
             )}
@@ -51,7 +51,7 @@ const ShiftFlags = ({ flags, setFlags }) => {
                     type="text"
                     value={flags.param_dienst_verschoben || ''}
                     onChange={e => updateParam('param_dienst_verschoben', e.target.value)}
-                    placeholder="Zeit / Details..."
+                    placeholder="Dienst verschoben um … Stunden"
                     className="w-full mt-1 bg-dark border border-gray-700 rounded p-2 text-white text-sm"
                 />
             )}
