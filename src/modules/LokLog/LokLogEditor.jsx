@@ -73,7 +73,10 @@ const LokLogEditor = () => {
                         const safeParse = (val) => {
                             if (!val) return [];
                             if (Array.isArray(val)) return val;
-                            try { return JSON.parse(val); } catch { return []; }
+                            try {
+                                const parsed = JSON.parse(val);
+                                return Array.isArray(parsed) ? parsed : [];
+                            } catch { return []; }
                         };
 
                         setShift({
@@ -89,7 +92,7 @@ const LokLogEditor = () => {
                             flags: typeof data.flags === 'string' ? JSON.parse(data.flags || '{}') : (data.flags || {}),
                             notes: data.notes || ''
                         });
-                        setSegments(data.segments || []);
+                        setSegments(Array.isArray(data.segments) ? data.segments : []);
                         setGuestRides(safeParse(data.guest_rides));
                         setWaitingTimes(safeParse(data.waiting_times));
                     } else {
@@ -246,7 +249,7 @@ const LokLogEditor = () => {
                             {status === 'error' && <span className="text-red-500 text-xs">Sync Error</span>}
                         </div>
                     </div>
-                    <p className="text-gray-400">Erfasse deine Schicht für den {new Date(date).toLocaleDateString('de-DE')}</p>
+                    <p className="text-gray-400">Erfasse deine Schicht für den {new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
                 </div>
 
                 <div className="flex items-center gap-1 bg-dark p-1 rounded-lg border border-gray-700">

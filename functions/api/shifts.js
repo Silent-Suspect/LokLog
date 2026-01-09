@@ -110,6 +110,7 @@ export async function onRequestPut(context) {
         }
 
         // 1. Insert/Replace Shift
+        // FIX: Added updated_at to track server-side changes for Last-Write-Wins
         batch.push(context.env.DB.prepare(`
             INSERT OR REPLACE INTO shifts (
                 id, user_id, date, start_time, end_time,
@@ -117,23 +118,31 @@ export async function onRequestPut(context) {
                 energy_18_start, energy_18_end, 
                 energy_28_start, energy_28_end,
                 status_json, comments,
-                guest_rides, waiting_times
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                guest_rides, waiting_times, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-            shiftId, userId, shift.date, shift.start_time, shift.end_time,
-            shift.km_start, shift.km_end,
-            shift.energy_18_start, shift.energy_18_end,
-            shift.energy_28_start, shift.energy_28_end,
-            JSON.stringify(shift.flags), shift.notes,
+            shiftId, userId, shift.date,
+            shift.start_time ?? null,
+            shift.end_time ?? null,
+            shift.km_start ?? null,
+            shift.km_end ?? null,
+            shift.energy_18_start ?? null,
+            shift.energy_18_end ?? null,
+            shift.energy_28_start ?? null,
+            shift.energy_28_end ?? null,
+            JSON.stringify(shift.flags || {}),
+            shift.notes ?? null,
             JSON.stringify(shift.guest_rides || []),
-            JSON.stringify(shift.waiting_times || [])
+            JSON.stringify(shift.waiting_times || []),
+            Date.now()
         ));
 
         // 2. Delete old segments
         batch.push(context.env.DB.prepare("DELETE FROM segments WHERE shift_id = ?").bind(shiftId));
 
         // 3. Insert new segments
-        segments.forEach((seg, index) => {
+        const safeSegments = Array.isArray(segments) ? segments : [];
+        safeSegments.forEach((seg, index) => {
             batch.push(context.env.DB.prepare(`
                 INSERT INTO segments (
                     shift_id, order_index, 
@@ -142,8 +151,13 @@ export async function onRequestPut(context) {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(
                 shiftId, index,
-                seg.train_nr, seg.tfz, seg.from_code, seg.to_code,
-                seg.departure, seg.arrival, seg.notes
+                seg.train_nr ?? null,
+                seg.tfz ?? null,
+                seg.from_code ?? null,
+                seg.to_code ?? null,
+                seg.departure ?? null,
+                seg.arrival ?? null,
+                seg.notes ?? null
             ));
         });
 
@@ -153,7 +167,7 @@ export async function onRequestPut(context) {
 
     } catch (err) {
         console.error("Save Error:", err);
-        return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+        return Response.json({ error: err.message, stack: err.stack }, { status: 500, headers: corsHeaders });
     }
 }
 

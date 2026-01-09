@@ -2,12 +2,20 @@ import { useMemo } from 'react';
 
 // Pure Helper Functions (Exported for Testing)
 export const getMinutes = (timeStr) => {
-    if (!timeStr) return 0;
-    const [h, m] = timeStr.split(':').map(Number);
-    return h * 60 + m;
+    // Defensive check: ensure timeStr is a string
+    if (!timeStr || typeof timeStr !== 'string') return 0;
+    try {
+        const parts = timeStr.split(':');
+        if (parts.length < 2) return 0;
+        const [h, m] = parts.map(Number);
+        return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+    } catch {
+        return 0;
+    }
 };
 
 export const calculateDuration = (start, end) => {
+    // Ensure inputs are valid
     if (!start || !end) return 0;
     const startMin = getMinutes(start);
     const endMin = getMinutes(end);
@@ -26,8 +34,11 @@ export const calculateSuggestedPause = (duration) => {
 export const useShiftCalculations = (shift) => {
     // Derived State
     const duration = useMemo(() => {
-        return calculateDuration(shift.start_time, shift.end_time);
-    }, [shift.start_time, shift.end_time]);
+        // Safe access to properties
+        const start = shift?.start_time || '';
+        const end = shift?.end_time || '';
+        return calculateDuration(start, end);
+    }, [shift?.start_time, shift?.end_time]);
 
     // Helper: Formatted String (HH:MM) for UI
     const durationString = useMemo(() => {

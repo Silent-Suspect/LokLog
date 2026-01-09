@@ -22,17 +22,54 @@ export const useShiftSync = (date, isOnline) => {
         const fetchServerData = async () => {
             try {
                 setStatus('syncing');
-                const token = await getToken();
-                const res = await fetch(`/api/shifts?date=${date}`, {
+                // Get token, potentially forcing refresh if we suspect expiry
+                let token = await getToken();
+                let res = await fetch(`/api/shifts?date=${date}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+
+                // RETRY LOGIC FOR EXPIRED TOKEN (GET)
+                if (res.status === 401 || (res.status === 500)) {
+                    let needsRetry = res.status === 401;
+                    if (res.status === 500) {
+                         // Clone because reading body consumes it
+                         const clone = res.clone();
+                         try {
+                             const errText = await clone.text();
+                             if (errText.includes("Token Expired")) {
+                                 needsRetry = true;
+                             }
+                         } catch (e) {
+                             // ignore read error
+                         }
+                    }
+
+                    if (needsRetry) {
+                        console.log("Token expired during fetch, retrying with fresh token...");
+                        token = await getToken({ skipCache: true }); // Force new token
+                        res = await fetch(`/api/shifts?date=${date}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                    }
+                }
 
                 if (res.status === 404) {
                     setStatus('idle');
                     return;
                 }
 
-                if (!res.ok) throw new Error('Fetch failed');
+                if (!res.ok) {
+                    // Try to parse error details
+                    let errorDetails = 'Unknown error';
+                    try {
+                        const errorJson = await res.json();
+                        errorDetails = JSON.stringify(errorJson);
+                    } catch {
+                        errorDetails = await res.text();
+                    }
+                    console.error("Fetch Failed Detail:", errorDetails);
+                    throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
+                }
 
                 const data = await res.json();
                 if (!data.shift) return;
@@ -51,9 +88,23 @@ export const useShiftSync = (date, isOnline) => {
                         date: date
                     };
 
+                    // IMPORTANT: Ensure ID is preserved correctly
+                    // If we receive a UUID from the server, we must ensure local ID matches or we update safely.
+                    // The server sends `data.shift.id` (UUID).
+                    // Dexie uses `++id` (auto-increment) by default schema.
+                    // We must ensure that we don't accidentally create duplicates.
+
                     if (currentLocal?.id) {
                         await db.shifts.update(currentLocal.id, shiftData);
                     } else {
+                        // If we are inserting a new record from server, we might need to handle ID carefully.
+                        // However, since schema is ++id, providing an ID (UUID string) might fail if not handled?
+                        // Actually, Dexie allows providing keys even for auto-increment stores.
+                        // But wait, user issue is about numeric IDs being generated locally.
+                        // Here we just fix the retry logic.
+                        // The user's other concern about IDs (39e6... vs 4.0) will be addressed separately if needed,
+                        // but right now fixing 500 error is priority.
+
                         await db.shifts.put(shiftData);
                     }
                     console.log("Synced Down: Server > Local");
@@ -79,7 +130,7 @@ export const useShiftSync = (date, isOnline) => {
                 if (dirtyRecords.length === 0) return;
 
                 setStatus('syncing');
-                const token = await getToken();
+                let token = await getToken();
 
                 for (const record of dirtyRecords) {
                     const payload = {
@@ -99,23 +150,69 @@ export const useShiftSync = (date, isOnline) => {
                         force_clear: !!record.force_clear
                     };
 
-                    const res = await fetch('/api/shifts', {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify(payload)
-                    });
+                    // FIX: Prevent numeric IDs (Dexie local PK) from being sent as 'id' to server.
+                    // If we have a server_id (UUID), use it.
+                    // If not, delete 'id' so backend generates a fresh UUID.
+                    if (record.server_id) {
+                        payload.shift.id = record.server_id;
+                    } else if (typeof record.id === 'number') {
+                        delete payload.shift.id;
+                    }
 
-                    if (!res.ok) throw new Error(`Sync failed for ${record.date}`);
+                    // Helper to perform fetch with retry
+                    const performSync = async (currentToken) => {
+                         return await fetch('/api/shifts', {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${currentToken}`
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                    };
+
+                    let res = await performSync(token);
+
+                    // RETRY LOGIC FOR EXPIRED TOKEN (PUT)
+                    // If 401 or 500 (Token Expired), force refresh and retry once.
+                    if (res.status === 401 || res.status === 500) {
+                        let needsRetry = res.status === 401;
+                        if (!needsRetry && res.status === 500) {
+                             const clone = res.clone();
+                             try {
+                                 const errText = await clone.text();
+                                 if (errText.includes("Token Expired")) {
+                                     needsRetry = true;
+                                 }
+                             } catch (e) { /* ignore */ }
+                        }
+
+                        if (needsRetry) {
+                            console.log("Token expired during sync (PUT), refreshing...");
+                            token = await getToken({ skipCache: true });
+                            res = await performSync(token);
+                        }
+                    }
+
+                    if (!res.ok) {
+                        // Try to parse error details
+                        let errorDetails = 'Unknown error';
+                        try {
+                            const errorJson = await res.json();
+                            errorDetails = JSON.stringify(errorJson);
+                        } catch {
+                            errorDetails = await res.text();
+                        }
+                        console.error(`Sync Failed Detail for ${record.date}:`, errorDetails);
+                        throw new Error(`Sync failed: ${res.status} ${res.statusText}`);
+                    }
 
                     const responseData = await res.json();
 
                     await db.shifts.update(record.id, {
                         dirty: 0,
                         force_clear: false, // Reset force flag after successful sync
-                        server_id: responseData.id,
+                        server_id: responseData.id, // Store the UUID returned from server
                         updated_at: new Date(responseData.updated_at || Date.now()).getTime()
                     });
                 }
@@ -153,6 +250,10 @@ export const useShiftSync = (date, isOnline) => {
         if (existing) {
             await db.shifts.update(existing.id, record);
         } else {
+            // New record. Dexie will assign numeric ID (e.g. 4)
+            // The sync logic will later send this to server.
+            // We modified sync logic to NOT send numeric ID, so server will generate UUID.
+            // Server returns UUID, we save it as `server_id`.
             await db.shifts.put(record);
         }
         setStatus('saved');
