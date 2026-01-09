@@ -130,33 +130,12 @@ export const useShiftSync = (date, isOnline) => {
                 if (dirtyRecords.length === 0) return;
 
                 setStatus('syncing');
-                // Auto-refresh token if it's close to expiry is handled by Clerk, but if we get 401, we need to retry.
                 let token = await getToken();
 
                 for (const record of dirtyRecords) {
-                    // Check if we need to generate a UUID for a new record that only has a numeric ID
-                    // This addresses the user's concern about "4.0" IDs.
-                    // Ideally, we assign a UUID here before sending to server if server_id is missing.
-                    // But the server (shifts.js) generates a UUID if id is missing.
-                    // However, `record.id` is the local numeric ID (e.g. 4).
-                    // We should probably rely on `server_id` field or generate a new UUID if it's a new creation.
-
                     const payload = {
                         shift: {
                             ...record,
-                            // If record.server_id exists, use it. Otherwise, let backend generate or use record.id?
-                            // Issue: record.id is local int (4), we want UUID.
-                            // If we send `id: 4`, backend uses it.
-                            // We should probably NOT send `id` if it's just a local auto-increment,
-                            // OR we should explicitly generate a UUID and map it.
-                            // Current logic: `const shiftId = shift.id || crypto.randomUUID();` on backend.
-                            // If we send `id: 4`, it uses 4.
-                            // Solution: Only send `id` if it looks like a UUID (string), or rely on `server_id`.
-
-                            // Let's modify the payload to prefer server_id if available, or undefined to force UUID generation.
-                            // But wait, if we update, we need the ID.
-                            // Complex. For now, let's just fix the RETRY logic as planned.
-
                             guest_rides: JSON.stringify(record.guest_rides || []),
                             waiting_times: JSON.stringify(record.waiting_times || []),
                             status_json: JSON.stringify(record.flags || {}),
@@ -171,50 +150,47 @@ export const useShiftSync = (date, isOnline) => {
                         force_clear: !!record.force_clear
                     };
 
-                    // If we have a server_id, ensure we send it as the ID to update.
+                    // FIX: Prevent numeric IDs (Dexie local PK) from being sent as 'id' to server.
+                    // If we have a server_id (UUID), use it.
+                    // If not, delete 'id' so backend generates a fresh UUID.
                     if (record.server_id) {
                         payload.shift.id = record.server_id;
                     } else if (typeof record.id === 'number') {
-                        // If local ID is number, DO NOT send it as 'id' to backend, so backend generates a UUID.
                         delete payload.shift.id;
                     }
 
-                    let res = await fetch('/api/shifts', {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify(payload)
-                    });
+                    // Helper to perform fetch with retry
+                    const performSync = async (currentToken) => {
+                         return await fetch('/api/shifts', {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${currentToken}`
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                    };
+
+                    let res = await performSync(token);
 
                     // RETRY LOGIC FOR EXPIRED TOKEN (PUT)
-                    if (res.status === 401 || (res.status === 500)) {
-                        // Note: Our backend returns 500 for Token Expired currently, see logs.
+                    // If 401 or 500 (Token Expired), force refresh and retry once.
+                    if (res.status === 401 || res.status === 500) {
                         let needsRetry = res.status === 401;
-                        if (res.status === 500) {
+                        if (!needsRetry && res.status === 500) {
                              const clone = res.clone();
                              try {
                                  const errText = await clone.text();
                                  if (errText.includes("Token Expired")) {
                                      needsRetry = true;
                                  }
-                             } catch (e) {
-                                 // ignore read error
-                             }
+                             } catch (e) { /* ignore */ }
                         }
 
                         if (needsRetry) {
-                            console.log("Token expired during sync, refreshing...");
-                            token = await getToken({ skipCache: true }); // Force new token
-                            res = await fetch('/api/shifts', {
-                                method: 'PUT',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${token}`
-                                },
-                                body: JSON.stringify(payload)
-                            });
+                            console.log("Token expired during sync (PUT), refreshing...");
+                            token = await getToken({ skipCache: true });
+                            res = await performSync(token);
                         }
                     }
 

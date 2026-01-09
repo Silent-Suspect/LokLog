@@ -2,6 +2,7 @@ import { Trash2, ArrowRight } from 'lucide-react';
 
 const SegmentsList = ({ segments, setSegments }) => {
 
+    // DEFENSIVE CODING: Ensure segments is always an array
     const safeSegments = Array.isArray(segments) ? segments : [];
 
     const updateSegment = (index, field, value) => {
@@ -18,9 +19,8 @@ const SegmentsList = ({ segments, setSegments }) => {
         });
     };
 
-    if (safeSegments.length === 0 && segments && !Array.isArray(segments)) {
-        return <div className="text-red-500 p-4 border border-red-500 rounded">Error: Invalid Segments Data</div>;
-    }
+    // REMOVED ERROR BLOCK: We now silently handle invalid data as empty list to prevent UI breakage
+    // if (safeSegments.length === 0 && segments && !Array.isArray(segments)) { ... }
 
     return (
         <div className="space-y-3">
