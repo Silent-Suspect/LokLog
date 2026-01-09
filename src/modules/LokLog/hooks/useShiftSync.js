@@ -88,9 +88,23 @@ export const useShiftSync = (date, isOnline) => {
                         date: date
                     };
 
+                    // IMPORTANT: Ensure ID is preserved correctly
+                    // If we receive a UUID from the server, we must ensure local ID matches or we update safely.
+                    // The server sends `data.shift.id` (UUID).
+                    // Dexie uses `++id` (auto-increment) by default schema.
+                    // We must ensure that we don't accidentally create duplicates.
+
                     if (currentLocal?.id) {
                         await db.shifts.update(currentLocal.id, shiftData);
                     } else {
+                        // If we are inserting a new record from server, we might need to handle ID carefully.
+                        // However, since schema is ++id, providing an ID (UUID string) might fail if not handled?
+                        // Actually, Dexie allows providing keys even for auto-increment stores.
+                        // But wait, user issue is about numeric IDs being generated locally.
+                        // Here we just fix the retry logic.
+                        // The user's other concern about IDs (39e6... vs 4.0) will be addressed separately if needed,
+                        // but right now fixing 500 error is priority.
+
                         await db.shifts.put(shiftData);
                     }
                     console.log("Synced Down: Server > Local");
@@ -120,9 +134,29 @@ export const useShiftSync = (date, isOnline) => {
                 let token = await getToken();
 
                 for (const record of dirtyRecords) {
+                    // Check if we need to generate a UUID for a new record that only has a numeric ID
+                    // This addresses the user's concern about "4.0" IDs.
+                    // Ideally, we assign a UUID here before sending to server if server_id is missing.
+                    // But the server (shifts.js) generates a UUID if id is missing.
+                    // However, `record.id` is the local numeric ID (e.g. 4).
+                    // We should probably rely on `server_id` field or generate a new UUID if it's a new creation.
+
                     const payload = {
                         shift: {
                             ...record,
+                            // If record.server_id exists, use it. Otherwise, let backend generate or use record.id?
+                            // Issue: record.id is local int (4), we want UUID.
+                            // If we send `id: 4`, backend uses it.
+                            // We should probably NOT send `id` if it's just a local auto-increment,
+                            // OR we should explicitly generate a UUID and map it.
+                            // Current logic: `const shiftId = shift.id || crypto.randomUUID();` on backend.
+                            // If we send `id: 4`, it uses 4.
+                            // Solution: Only send `id` if it looks like a UUID (string), or rely on `server_id`.
+
+                            // Let's modify the payload to prefer server_id if available, or undefined to force UUID generation.
+                            // But wait, if we update, we need the ID.
+                            // Complex. For now, let's just fix the RETRY logic as planned.
+
                             guest_rides: JSON.stringify(record.guest_rides || []),
                             waiting_times: JSON.stringify(record.waiting_times || []),
                             status_json: JSON.stringify(record.flags || {}),
@@ -136,6 +170,14 @@ export const useShiftSync = (date, isOnline) => {
                         segments: record.segments || [],
                         force_clear: !!record.force_clear
                     };
+
+                    // If we have a server_id, ensure we send it as the ID to update.
+                    if (record.server_id) {
+                        payload.shift.id = record.server_id;
+                    } else if (typeof record.id === 'number') {
+                        // If local ID is number, DO NOT send it as 'id' to backend, so backend generates a UUID.
+                        delete payload.shift.id;
+                    }
 
                     let res = await fetch('/api/shifts', {
                         method: 'PUT',
@@ -194,7 +236,7 @@ export const useShiftSync = (date, isOnline) => {
                     await db.shifts.update(record.id, {
                         dirty: 0,
                         force_clear: false, // Reset force flag after successful sync
-                        server_id: responseData.id,
+                        server_id: responseData.id, // Store the UUID returned from server
                         updated_at: new Date(responseData.updated_at || Date.now()).getTime()
                     });
                 }
@@ -232,6 +274,10 @@ export const useShiftSync = (date, isOnline) => {
         if (existing) {
             await db.shifts.update(existing.id, record);
         } else {
+            // New record. Dexie will assign numeric ID (e.g. 4)
+            // The sync logic will later send this to server.
+            // We modified sync logic to NOT send numeric ID, so server will generate UUID.
+            // Server returns UUID, we save it as `server_id`.
             await db.shifts.put(record);
         }
         setStatus('saved');
