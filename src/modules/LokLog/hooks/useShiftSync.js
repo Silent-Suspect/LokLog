@@ -72,7 +72,12 @@ export const useShiftSync = (date, isOnline) => {
                 }
 
                 const data = await res.json();
-                if (!data.shift) return;
+
+                // If no shift data (e.g., empty day on server), ensure we reset status
+                if (!data.shift) {
+                    setStatus('idle');
+                    return;
+                }
 
                 const serverTime = new Date(data.shift.updated_at || 0).getTime();
                 const currentLocal = await db.shifts.where('date').equals(date).first();
@@ -133,47 +138,55 @@ export const useShiftSync = (date, isOnline) => {
                 let token = await getToken();
 
                 for (const record of dirtyRecords) {
-                    const payload = {
-                        shift: {
-                            ...record,
-                            guest_rides: JSON.stringify(record.guest_rides || []),
-                            waiting_times: JSON.stringify(record.waiting_times || []),
-                            status_json: JSON.stringify(record.flags || {}),
-                            energy_18_start: record.energy1_start,
-                            energy_18_end: record.energy1_end,
-                            energy_28_start: record.energy2_start,
-                            energy_28_end: record.energy2_end,
-                            comments: record.notes,
-                            updated_at: record.updated_at
-                        },
-                        segments: record.segments || [],
-                        force_clear: !!record.force_clear
-                    };
-
-                    // FIX: Prevent numeric IDs (Dexie local PK) from being sent as 'id' to server.
-                    // If we have a server_id (UUID), use it.
-                    // If not, delete 'id' so backend generates a fresh UUID.
-                    if (record.server_id) {
-                        payload.shift.id = record.server_id;
-                    } else if (typeof record.id === 'number') {
-                        delete payload.shift.id;
-                    }
-
                     // Helper to perform fetch with retry
-                    const performSync = async (currentToken) => {
-                         return await fetch('/api/shifts', {
-                            method: 'PUT',
+                    const performSync = async (currentToken, method = 'PUT', body = null, url = '/api/shifts') => {
+                         return await fetch(url, {
+                            method,
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Authorization': `Bearer ${currentToken}`
                             },
-                            body: JSON.stringify(payload)
+                            body: body ? JSON.stringify(body) : null
                         });
                     };
 
-                    let res = await performSync(token);
+                    let res;
 
-                    // RETRY LOGIC FOR EXPIRED TOKEN (PUT)
+                    // DELETE LOGIC
+                    if (record.deleted === 1) {
+                         res = await performSync(token, 'DELETE', null, `/api/shifts?date=${record.date}`);
+                    } else {
+                        // PUT LOGIC
+                        const payload = {
+                            shift: {
+                                ...record,
+                                guest_rides: JSON.stringify(record.guest_rides || []),
+                                waiting_times: JSON.stringify(record.waiting_times || []),
+                                status_json: JSON.stringify(record.flags || {}),
+                                energy_18_start: record.energy1_start,
+                                energy_18_end: record.energy1_end,
+                                energy_28_start: record.energy2_start,
+                                energy_28_end: record.energy2_end,
+                                comments: record.notes,
+                                updated_at: record.updated_at
+                            },
+                            segments: record.segments || [],
+                            force_clear: !!record.force_clear
+                        };
+
+                        // FIX: Prevent numeric IDs (Dexie local PK) from being sent as 'id' to server.
+                        // If we have a server_id (UUID), use it.
+                        // If not, delete 'id' so backend generates a fresh UUID.
+                        if (record.server_id) {
+                            payload.shift.id = record.server_id;
+                        } else if (typeof record.id === 'number') {
+                            delete payload.shift.id;
+                        }
+
+                        res = await performSync(token, 'PUT', payload);
+                    }
+
+                    // RETRY LOGIC FOR EXPIRED TOKEN
                     // If 401 or 500 (Token Expired), force refresh and retry once.
                     if (res.status === 401 || res.status === 500) {
                         let needsRetry = res.status === 401;
@@ -209,12 +222,17 @@ export const useShiftSync = (date, isOnline) => {
 
                     const responseData = await res.json();
 
-                    await db.shifts.update(record.id, {
-                        dirty: 0,
-                        force_clear: false, // Reset force flag after successful sync
-                        server_id: responseData.id, // Store the UUID returned from server
-                        updated_at: new Date(responseData.updated_at || Date.now()).getTime()
-                    });
+                    // If we just DELETED the record on server, remove it locally
+                    if (record.deleted === 1) {
+                        await db.shifts.delete(record.id);
+                    } else {
+                        await db.shifts.update(record.id, {
+                            dirty: 0,
+                            force_clear: false, // Reset force flag after successful sync
+                            server_id: responseData.id, // Store the UUID returned from server
+                            updated_at: new Date(responseData.updated_at || Date.now()).getTime()
+                        });
+                    }
                 }
                 setStatus('saved');
                 setLastSync(new Date());
@@ -239,7 +257,8 @@ export const useShiftSync = (date, isOnline) => {
             guest_rides: newData.guestRides,
             waiting_times: newData.waitingTimes,
             updated_at: timestamp,
-            dirty: 1
+            dirty: 1,
+            deleted: 0 // Ensure we mark as active
         };
 
         if (options.force_clear) {
@@ -260,10 +279,25 @@ export const useShiftSync = (date, isOnline) => {
         // Do NOT trigger reload here to avoid race condition
     }, [date]);
 
+    // 5. Delete Function (Local Soft Delete -> Sync -> Hard Delete)
+    const deleteLocal = useCallback(async () => {
+        const existing = await db.shifts.where('date').equals(date).first();
+        if (existing) {
+            // Mark as deleted and dirty so sync picks it up
+            await db.shifts.update(existing.id, {
+                dirty: 1,
+                deleted: 1,
+                updated_at: Date.now()
+            });
+            setStatus('saved'); // Technically 'pending delete'
+        }
+    }, [date]);
+
     return {
         localShift, // Still returned if needed for other things
         reloadTrigger, // New signal
         saveLocal,
+        deleteLocal,
         status,
         lastSync
     };

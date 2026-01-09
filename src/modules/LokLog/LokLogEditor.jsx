@@ -8,6 +8,7 @@ import { db } from '../../db/loklogDb';
 // New Modules
 import { useShiftSync } from './hooks/useShiftSync';
 import { useShiftCalculations } from './hooks/useShiftCalculations';
+import { isDayEmpty } from './utils/shiftUtils';
 
 // Refactored Components
 import ShiftTimesInput from './components/ShiftTimesInput';
@@ -43,7 +44,7 @@ const LokLogEditor = () => {
     }, []);
 
     // 1. SYNC & DATA HOOK
-    const { saveLocal, status, reloadTrigger } = useShiftSync(date, isOnline);
+    const { saveLocal, deleteLocal, status, reloadTrigger } = useShiftSync(date, isOnline);
 
     // 2. LOCAL STATE
     const [shift, setShift] = useState({
@@ -69,7 +70,8 @@ const LokLogEditor = () => {
                 const data = await db.shifts.where('date').equals(date).first();
 
                 if (isActive) {
-                    if (data) {
+                    // Ignore if marked for deletion
+                    if (data && data.deleted !== 1) {
                         const safeParse = (val) => {
                             if (!val) return [];
                             if (Array.isArray(val)) return val;
@@ -122,7 +124,7 @@ const LokLogEditor = () => {
 
     // 3. AUTO-SAVE (State -> Dexie)
     useEffect(() => {
-        const timeoutId = setTimeout(() => {
+        const timeoutId = setTimeout(async () => {
             if (!isLoadedRef.current && status === 'idle') return; // Wait for initial load
 
             const currentData = {
@@ -131,6 +133,18 @@ const LokLogEditor = () => {
                 guestRides,
                 waitingTimes
             };
+
+            const isEmpty = isDayEmpty(currentData);
+
+            // Optimization: Do NOT save if empty and no record exists yet
+            if (isEmpty) {
+                const existing = await db.shifts.where('date').equals(date).first();
+                // If it doesn't exist, OR it exists but is marked deleted, we skip saving
+                if (!existing || existing.deleted === 1) {
+                    return;
+                }
+            }
+
             saveLocal(currentData);
         }, 1000);
 
@@ -176,19 +190,8 @@ const LokLogEditor = () => {
             setGuestRides([]);
             setWaitingTimes([]);
 
-            // Force Clear logic to bypass backend safety net
-            saveLocal({
-                shift: {
-                    start_time: '', end_time: '', pause: 0,
-                    km_start: '', km_end: '',
-                    energy1_start: '', energy1_end: '',
-                    energy2_start: '', energy2_end: '',
-                    flags: {}, notes: ''
-                },
-                segments: [],
-                guestRides: [],
-                waitingTimes: []
-            }, { force_clear: true });
+            // Use deleteLocal to remove from DB completely
+            deleteLocal();
         }
     };
 
