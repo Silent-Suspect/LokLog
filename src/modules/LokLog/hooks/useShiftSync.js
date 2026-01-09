@@ -23,10 +23,35 @@ export const useShiftSync = (date, isOnline) => {
             try {
                 setStatus('syncing');
                 // Get token, potentially forcing refresh if we suspect expiry
-                const token = await getToken();
-                const res = await fetch(`/api/shifts?date=${date}`, {
+                let token = await getToken();
+                let res = await fetch(`/api/shifts?date=${date}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+
+                // RETRY LOGIC FOR EXPIRED TOKEN (GET)
+                if (res.status === 401 || (res.status === 500)) {
+                    let needsRetry = res.status === 401;
+                    if (res.status === 500) {
+                         // Clone because reading body consumes it
+                         const clone = res.clone();
+                         try {
+                             const errText = await clone.text();
+                             if (errText.includes("Token Expired")) {
+                                 needsRetry = true;
+                             }
+                         } catch (e) {
+                             // ignore read error
+                         }
+                    }
+
+                    if (needsRetry) {
+                        console.log("Token expired during fetch, retrying with fresh token...");
+                        token = await getToken({ skipCache: true }); // Force new token
+                        res = await fetch(`/api/shifts?date=${date}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                    }
+                }
 
                 if (res.status === 404) {
                     setStatus('idle');
@@ -43,19 +68,6 @@ export const useShiftSync = (date, isOnline) => {
                         errorDetails = await res.text();
                     }
                     console.error("Fetch Failed Detail:", errorDetails);
-
-                    // If token expired, we might want to retry once with a fresh token
-                    if (errorDetails.includes("Token Expired") || res.status === 401) {
-                         console.log("Token expired, retrying with fresh token...");
-                         const freshToken = await getToken({ skipCache: true }); // Force refresh if supported by Clerk client
-                         // or just re-call if the client handles it. Clerk's getToken usually handles it if we don't pass anything,
-                         // but if it returned a stale one, we can try this.
-                         // Note: Standard Clerk react `getToken` takes options.
-
-                         // Retry logic would go here, but for now let's just throw to avoid infinite loops without a proper retry mechanism.
-                         // Ideally, we'd recursively call or have a retry flag.
-                    }
-
                     throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
                 }
 
@@ -134,16 +146,19 @@ export const useShiftSync = (date, isOnline) => {
                         body: JSON.stringify(payload)
                     });
 
-                    // RETRY LOGIC FOR EXPIRED TOKEN
+                    // RETRY LOGIC FOR EXPIRED TOKEN (PUT)
                     if (res.status === 401 || (res.status === 500)) {
                         // Note: Our backend returns 500 for Token Expired currently, see logs.
-                        // We should check the body text too if possible, but let's just try refreshing on 500 as well if it's "Token Expired"
                         let needsRetry = res.status === 401;
                         if (res.status === 500) {
                              const clone = res.clone();
-                             const errText = await clone.text();
-                             if (errText.includes("Token Expired")) {
-                                 needsRetry = true;
+                             try {
+                                 const errText = await clone.text();
+                                 if (errText.includes("Token Expired")) {
+                                     needsRetry = true;
+                                 }
+                             } catch (e) {
+                                 // ignore read error
                              }
                         }
 
