@@ -22,7 +22,8 @@ export async function onRequestGet(context) {
         let results = [];
 
         if (codesParam) {
-            const codes = codesParam.split(/[\s,]+/).filter(c => c).slice(0, 50);
+            // Fix: Split only by comma to support codes with spaces (e.g. "FFU G")
+            const codes = codesParam.split(',').map(c => c.trim()).filter(c => c).slice(0, 50);
             if (codes.length > 0) {
                 const placeholders = codes.map(() => '?').join(',');
                 const query = `SELECT * FROM stations WHERE code IN (${placeholders})`;
