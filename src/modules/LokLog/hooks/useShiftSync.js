@@ -72,7 +72,12 @@ export const useShiftSync = (date, isOnline) => {
                 }
 
                 const data = await res.json();
-                if (!data.shift) return;
+
+                // If no shift data (e.g., empty day on server), ensure we reset status
+                if (!data.shift) {
+                    setStatus('idle');
+                    return;
+                }
 
                 const serverTime = new Date(data.shift.updated_at || 0).getTime();
                 const currentLocal = await db.shifts.where('date').equals(date).first();
