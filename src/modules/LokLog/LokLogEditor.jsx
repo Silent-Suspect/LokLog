@@ -145,7 +145,8 @@ const LokLogEditor = () => {
                 }
             }
 
-            saveLocal(currentData);
+            // If segments are empty, explicitly force clear to bypass backend safety net
+            saveLocal(currentData, { force_clear: segments.length === 0 });
         }, 1000);
 
         return () => clearTimeout(timeoutId);
