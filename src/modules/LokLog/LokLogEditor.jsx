@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { FileDown, Plus, Trash2, TrainFront, CheckSquare, Calendar, Cloud, RefreshCw } from 'lucide-react';
+import { FileDown, PawPrint, Trash2, TrainFront, CheckSquare, ChevronsLeft, ChevronsRight, Cloud, RefreshCw } from 'lucide-react';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
 import { useUserSettings } from '../../hooks/useUserSettings';
 import { db } from '../../db/loklogDb';
@@ -20,6 +20,11 @@ import WaitingTimesList from './components/WaitingTimesList';
 
 // Utilities
 import { parseRouteInput } from './utils/routeParser';
+
+// CONSTANTS
+const EMPTY_SEGMENT = { from_code: '', to_code: '', train_nr: '', tfz: '', departure: '', arrival: '', notes: '' };
+const EMPTY_RIDE = { from: '', to: '', dep: '', arr: '' };
+const EMPTY_WAIT = { start: '', end: '', loc: '', reason: '' };
 
 const LokLogEditor = () => {
     const { isConnected, uploadFile } = useGoogleDrive();
@@ -54,9 +59,9 @@ const LokLogEditor = () => {
         energy2_start: '', energy2_end: '',
         flags: {}, notes: ''
     });
-    const [segments, setSegments] = useState([]);
-    const [guestRides, setGuestRides] = useState([]);
-    const [waitingTimes, setWaitingTimes] = useState([]);
+    const [segments, setSegments] = useState([ { ...EMPTY_SEGMENT } ]);
+    const [guestRides, setGuestRides] = useState([ { ...EMPTY_RIDE } ]);
+    const [waitingTimes, setWaitingTimes] = useState([ { ...EMPTY_WAIT } ]);
     const [routeInput, setRouteInput] = useState('');
     const isLoadedRef = useRef(false);
 
@@ -94,9 +99,17 @@ const LokLogEditor = () => {
                             flags: typeof data.flags === 'string' ? JSON.parse(data.flags || '{}') : (data.flags || {}),
                             notes: data.notes || ''
                         });
-                        setSegments(Array.isArray(data.segments) ? data.segments : []);
-                        setGuestRides(safeParse(data.guest_rides));
-                        setWaitingTimes(safeParse(data.waiting_times));
+
+                        // Ensure at least one empty item if lists are empty
+                        const loadedSegments = Array.isArray(data.segments) ? data.segments : [];
+                        setSegments(loadedSegments.length > 0 ? loadedSegments : [ { ...EMPTY_SEGMENT } ]);
+
+                        const loadedGuestRides = safeParse(data.guest_rides);
+                        setGuestRides(loadedGuestRides.length > 0 ? loadedGuestRides : [ { ...EMPTY_RIDE } ]);
+
+                        const loadedWaitingTimes = safeParse(data.waiting_times);
+                        setWaitingTimes(loadedWaitingTimes.length > 0 ? loadedWaitingTimes : [ { ...EMPTY_WAIT } ]);
+
                     } else {
                         // Reset if no data found (New Day)
                         setShift({
@@ -106,9 +119,9 @@ const LokLogEditor = () => {
                             energy2_start: '', energy2_end: '',
                             flags: {}, notes: ''
                         });
-                        setSegments([]);
-                        setGuestRides([]);
-                        setWaitingTimes([]);
+                        setSegments([ { ...EMPTY_SEGMENT } ]);
+                        setGuestRides([ { ...EMPTY_RIDE } ]);
+                        setWaitingTimes([ { ...EMPTY_WAIT } ]);
                     }
                     isLoadedRef.current = true;
                 }
@@ -145,7 +158,24 @@ const LokLogEditor = () => {
                 }
             }
 
-            saveLocal(currentData);
+            // Filter out empty placeholder items before saving
+            const validSegments = segments.filter(s =>
+                s.from_code || s.to_code || s.train_nr || s.tfz || s.departure || s.arrival || s.notes
+            );
+            const validGuestRides = guestRides.filter(r => r.from || r.to || r.dep || r.arr);
+            const validWaitingTimes = waitingTimes.filter(w => w.start || w.end || w.loc || w.reason);
+
+            // We pass valid items to saveLocal, but we keep the placeholders in local state (UI)
+            const dataToSave = {
+                ...currentData,
+                segments: validSegments,
+                guestRides: validGuestRides,
+                waitingTimes: validWaitingTimes
+            };
+
+            // If validSegments are empty, explicitly force clear to bypass backend safety net
+            // Note: We prioritize segment check for force_clear as that's the main safety net trigger
+            saveLocal(dataToSave, { force_clear: validSegments.length === 0 });
         }, 1000);
 
         return () => clearTimeout(timeoutId);
@@ -172,7 +202,27 @@ const LokLogEditor = () => {
     const handleRouteAdd = () => {
         const newSegments = parseRouteInput(routeInput);
         if (newSegments.length > 0) {
-            setSegments([...segments, ...newSegments]);
+            setSegments(prev => {
+                const list = [...prev];
+                // Find first completely empty segment
+                const insertIdx = list.findIndex(s =>
+                    !s.from_code && !s.to_code && !s.train_nr && !s.tfz && !s.departure && !s.arrival && !s.notes
+                );
+
+                if (insertIdx !== -1) {
+                    // Overwrite the empty slot with the first new segment
+                    list[insertIdx] = { ...list[insertIdx], ...newSegments[0] };
+
+                    // Insert the rest of the new segments immediately after
+                    if (newSegments.length > 1) {
+                        list.splice(insertIdx + 1, 0, ...newSegments.slice(1));
+                    }
+                    return list;
+                } else {
+                    // No empty slot found, append all
+                    return [...list, ...newSegments];
+                }
+            });
             setRouteInput('');
         }
     };
@@ -186,9 +236,9 @@ const LokLogEditor = () => {
                 energy2_start: '', energy2_end: '',
                 flags: {}, notes: ''
             });
-            setSegments([]);
-            setGuestRides([]);
-            setWaitingTimes([]);
+            setSegments([ { ...EMPTY_SEGMENT } ]);
+            setGuestRides([ { ...EMPTY_RIDE } ]);
+            setWaitingTimes([ { ...EMPTY_WAIT } ]);
 
             // Use deleteLocal to remove from DB completely
             deleteLocal();
@@ -256,11 +306,11 @@ const LokLogEditor = () => {
                 </div>
 
                 <div className="flex items-center gap-1 bg-dark p-1 rounded-lg border border-gray-700">
-                    <button onClick={() => changeDate(-1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><Calendar size={18} /></button>
+                    <button onClick={() => changeDate(-1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><ChevronsLeft size={18} /></button>
                     <div className="flex items-center gap-2 px-2 border-x border-gray-700/50">
                         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-transparent text-white py-1 outline-none font-mono text-sm uppercase" />
                     </div>
-                    <button onClick={() => changeDate(1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><Calendar size={18} /></button>
+                    <button onClick={() => changeDate(1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><ChevronsRight size={18} /></button>
                 </div>
             </div>
 
@@ -291,7 +341,7 @@ const LokLogEditor = () => {
                             onKeyDown={e => e.key === 'Enter' && handleRouteAdd()}
                         />
                         <button onClick={handleRouteAdd} className="bg-accent-blue text-white p-3 rounded-xl hover:bg-blue-600 transition">
-                            <Plus size={20} />
+                            <PawPrint size={20} />
                         </button>
                     </div>
 

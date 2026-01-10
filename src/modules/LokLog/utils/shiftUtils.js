@@ -3,10 +3,23 @@ export const isDayEmpty = (data) => {
     if (!data) return true;
     const { shift, segments, guestRides, waitingTimes } = data;
 
-    // Check Arrays
-    if (segments && segments.length > 0) return false;
-    if (guestRides && guestRides.length > 0) return false;
-    if (waitingTimes && waitingTimes.length > 0) return false;
+    // Check Arrays - Deep Check for content, ignoring placeholders
+    if (segments && segments.length > 0) {
+        const hasData = segments.some(s =>
+            s.from_code || s.to_code || s.train_nr || s.tfz || s.departure || s.arrival || s.notes
+        );
+        if (hasData) return false;
+    }
+
+    if (guestRides && guestRides.length > 0) {
+        const hasData = guestRides.some(r => r.from || r.to || r.dep || r.arr);
+        if (hasData) return false;
+    }
+
+    if (waitingTimes && waitingTimes.length > 0) {
+        const hasData = waitingTimes.some(w => w.start || w.end || w.loc || w.reason);
+        if (hasData) return false;
+    }
 
     // Check Shift Object
     if (shift) {

@@ -1,4 +1,5 @@
 import { TrainFront, Plus, Trash2 } from 'lucide-react';
+import { calculateDuration } from '../hooks/useShiftCalculations';
 
 const GuestRidesList = ({ guestRides, setGuestRides }) => {
 
@@ -12,6 +13,17 @@ const GuestRidesList = ({ guestRides, setGuestRides }) => {
 
     const removeRide = (index) => {
         setGuestRides(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const getPreviewString = (ride) => {
+        if (!ride.from || !ride.to || !ride.dep || !ride.arr) return null;
+
+        const diffMins = calculateDuration(ride.dep, ride.arr);
+        const hours = Math.floor(diffMins / 60);
+        const mins = diffMins % 60;
+        const durationStr = `${hours}:${mins.toString().padStart(2, '0')}`;
+
+        return `${ride.from} - ${ride.to} (${ride.dep} - ${ride.arr}) = ${durationStr} h`;
     };
 
     return (
@@ -55,8 +67,11 @@ const GuestRidesList = ({ guestRides, setGuestRides }) => {
                             className="bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none"
                         />
                     </div>
-                    <div className="flex justify-between">
-                        <span className="text-xs text-gray-500">Duration...</span>
+
+                    <div className="flex justify-between items-end">
+                        <div className="text-xs text-accent-blue font-mono min-h-[1.2em]">
+                            {getPreviewString(ride)}
+                        </div>
                         <button
                             onClick={() => removeRide(i)}
                             className="text-red-400 hover:text-red-300"
