@@ -84,7 +84,7 @@ const SegmentsList = ({ segments, setSegments }) => {
                             />
                             <input
                                 name={`segment_tfz_${i}`}
-                                placeholder="Tfz"
+                                placeholder="Tfz-Nr."
                                 value={seg.tfz}
                                 onChange={e => updateSegment(i, 'tfz', e.target.value)}
                                 className="bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white focus:border-accent-blue outline-none"

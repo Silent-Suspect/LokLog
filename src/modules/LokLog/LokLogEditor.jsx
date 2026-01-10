@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { FileDown, PawPrint, Trash2, TrainFront, CheckSquare, ChevronLeft, ChevronRight, Cloud, RefreshCw } from 'lucide-react';
+import { FileDown, PawPrint, Trash2, TrainFront, CheckSquare, ChevronsLeft, ChevronsRight, Cloud, RefreshCw } from 'lucide-react';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
 import { useUserSettings } from '../../hooks/useUserSettings';
 import { db } from '../../db/loklogDb';
@@ -306,11 +306,11 @@ const LokLogEditor = () => {
                 </div>
 
                 <div className="flex items-center gap-1 bg-dark p-1 rounded-lg border border-gray-700">
-                    <button onClick={() => changeDate(-1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><ChevronLeft size={18} /></button>
+                    <button onClick={() => changeDate(-1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><ChevronsLeft size={18} /></button>
                     <div className="flex items-center gap-2 px-2 border-x border-gray-700/50">
                         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-transparent text-white py-1 outline-none font-mono text-sm uppercase" />
                     </div>
-                    <button onClick={() => changeDate(1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><ChevronRight size={18} /></button>
+                    <button onClick={() => changeDate(1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><ChevronsRight size={18} /></button>
                 </div>
             </div>
 

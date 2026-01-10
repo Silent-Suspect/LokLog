@@ -57,7 +57,7 @@ const WaitingTimesList = ({ waitingTimes, setWaitingTimes }) => {
                         </div>
                         <div className="flex gap-2">
                             <input
-                                placeholder="Ort"
+                                placeholder="Ort (z.B. Fulda)"
                                 value={wait.loc}
                                 onChange={e => updateWait(i, 'loc', e.target.value)}
                                 className="w-1/2 bg-dark border border-gray-700 rounded px-2 py-1 text-sm text-white"
