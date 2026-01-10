@@ -21,6 +21,9 @@ import WaitingTimesList from './components/WaitingTimesList';
 // Utilities
 import { parseRouteInput } from './utils/routeParser';
 
+// CONSTANTS
+const EMPTY_SEGMENT = { from_code: '', to_code: '', train_nr: '', tfz: '', departure: '', arrival: '', notes: '' };
+
 const LokLogEditor = () => {
     const { isConnected, uploadFile } = useGoogleDrive();
     const { user } = useUser();
@@ -54,7 +57,7 @@ const LokLogEditor = () => {
         energy2_start: '', energy2_end: '',
         flags: {}, notes: ''
     });
-    const [segments, setSegments] = useState([]);
+    const [segments, setSegments] = useState([ { ...EMPTY_SEGMENT } ]);
     const [guestRides, setGuestRides] = useState([]);
     const [waitingTimes, setWaitingTimes] = useState([]);
     const [routeInput, setRouteInput] = useState('');
@@ -94,7 +97,11 @@ const LokLogEditor = () => {
                             flags: typeof data.flags === 'string' ? JSON.parse(data.flags || '{}') : (data.flags || {}),
                             notes: data.notes || ''
                         });
-                        setSegments(Array.isArray(data.segments) ? data.segments : []);
+
+                        // Ensure at least one empty segment if list is empty
+                        const loadedSegments = Array.isArray(data.segments) ? data.segments : [];
+                        setSegments(loadedSegments.length > 0 ? loadedSegments : [ { ...EMPTY_SEGMENT } ]);
+
                         setGuestRides(safeParse(data.guest_rides));
                         setWaitingTimes(safeParse(data.waiting_times));
                     } else {
@@ -106,7 +113,7 @@ const LokLogEditor = () => {
                             energy2_start: '', energy2_end: '',
                             flags: {}, notes: ''
                         });
-                        setSegments([]);
+                        setSegments([ { ...EMPTY_SEGMENT } ]);
                         setGuestRides([]);
                         setWaitingTimes([]);
                     }
@@ -145,8 +152,19 @@ const LokLogEditor = () => {
                 }
             }
 
-            // If segments are empty, explicitly force clear to bypass backend safety net
-            saveLocal(currentData, { force_clear: segments.length === 0 });
+            // Filter out empty placeholder segments before saving
+            const validSegments = segments.filter(s =>
+                s.from_code || s.to_code || s.train_nr || s.tfz || s.departure || s.arrival || s.notes
+            );
+
+            // We pass validSegments to saveLocal, but we keep the placeholders in local state (UI)
+            const dataToSave = {
+                ...currentData,
+                segments: validSegments
+            };
+
+            // If validSegments are empty, explicitly force clear to bypass backend safety net
+            saveLocal(dataToSave, { force_clear: validSegments.length === 0 });
         }, 1000);
 
         return () => clearTimeout(timeoutId);
@@ -173,7 +191,27 @@ const LokLogEditor = () => {
     const handleRouteAdd = () => {
         const newSegments = parseRouteInput(routeInput);
         if (newSegments.length > 0) {
-            setSegments([...segments, ...newSegments]);
+            setSegments(prev => {
+                const list = [...prev];
+                // Find first completely empty segment
+                const insertIdx = list.findIndex(s =>
+                    !s.from_code && !s.to_code && !s.train_nr && !s.tfz && !s.departure && !s.arrival && !s.notes
+                );
+
+                if (insertIdx !== -1) {
+                    // Overwrite the empty slot with the first new segment
+                    list[insertIdx] = { ...list[insertIdx], ...newSegments[0] };
+
+                    // Insert the rest of the new segments immediately after
+                    if (newSegments.length > 1) {
+                        list.splice(insertIdx + 1, 0, ...newSegments.slice(1));
+                    }
+                    return list;
+                } else {
+                    // No empty slot found, append all
+                    return [...list, ...newSegments];
+                }
+            });
             setRouteInput('');
         }
     };
@@ -187,7 +225,7 @@ const LokLogEditor = () => {
                 energy2_start: '', energy2_end: '',
                 flags: {}, notes: ''
             });
-            setSegments([]);
+            setSegments([ { ...EMPTY_SEGMENT } ]);
             setGuestRides([]);
             setWaitingTimes([]);
 

@@ -14,6 +14,17 @@ const WaitingTimesList = ({ waitingTimes, setWaitingTimes }) => {
         setWaitingTimes(prev => prev.filter((_, i) => i !== index));
     };
 
+    const getPreviewString = (wait) => {
+        if (!wait.start || !wait.end) return null;
+
+        // Format: 10:00 - 10:30 EDO (Kaffee trinken)
+        // Ensure optional fields are handled cleanly
+        const locStr = wait.loc ? ` ${wait.loc}` : '';
+        const reasonStr = wait.reason ? ` (${wait.reason})` : '';
+
+        return `${wait.start} - ${wait.end}${locStr}${reasonStr}`;
+    };
+
     return (
         <div className="bg-card p-5 rounded-2xl border border-gray-800 space-y-4">
             <div className="flex justify-between items-center">
@@ -59,8 +70,11 @@ const WaitingTimesList = ({ waitingTimes, setWaitingTimes }) => {
                             />
                         </div>
                     </div>
-                    <div className="flex justify-between">
-                        <span className="text-xs text-gray-500">...</span>
+
+                    <div className="flex justify-between items-end">
+                        <div className="text-xs text-accent-blue font-mono min-h-[1.2em]">
+                            {getPreviewString(wait)}
+                        </div>
                         <button
                             onClick={() => removeWait(i)}
                             className="text-red-400 hover:text-red-300"

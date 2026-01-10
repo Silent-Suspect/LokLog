@@ -4,7 +4,14 @@ export const isDayEmpty = (data) => {
     const { shift, segments, guestRides, waitingTimes } = data;
 
     // Check Arrays
-    if (segments && segments.length > 0) return false;
+    if (segments && segments.length > 0) {
+        // Only return false if at least one segment has data
+        const hasData = segments.some(s =>
+            s.from_code || s.to_code || s.train_nr || s.tfz || s.departure || s.arrival || s.notes
+        );
+        if (hasData) return false;
+    }
+
     if (guestRides && guestRides.length > 0) return false;
     if (waitingTimes && waitingTimes.length > 0) return false;
 
