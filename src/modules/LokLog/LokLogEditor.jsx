@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { FileDown, Plus, Trash2, TrainFront, CheckSquare, Calendar, Cloud, RefreshCw } from 'lucide-react';
+import { FileDown, PawPrint, Trash2, TrainFront, CheckSquare, ChevronLeft, ChevronRight, Cloud, RefreshCw } from 'lucide-react';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
 import { useUserSettings } from '../../hooks/useUserSettings';
 import { db } from '../../db/loklogDb';
@@ -23,6 +23,8 @@ import { parseRouteInput } from './utils/routeParser';
 
 // CONSTANTS
 const EMPTY_SEGMENT = { from_code: '', to_code: '', train_nr: '', tfz: '', departure: '', arrival: '', notes: '' };
+const EMPTY_RIDE = { from: '', to: '', dep: '', arr: '' };
+const EMPTY_WAIT = { start: '', end: '', loc: '', reason: '' };
 
 const LokLogEditor = () => {
     const { isConnected, uploadFile } = useGoogleDrive();
@@ -58,8 +60,8 @@ const LokLogEditor = () => {
         flags: {}, notes: ''
     });
     const [segments, setSegments] = useState([ { ...EMPTY_SEGMENT } ]);
-    const [guestRides, setGuestRides] = useState([]);
-    const [waitingTimes, setWaitingTimes] = useState([]);
+    const [guestRides, setGuestRides] = useState([ { ...EMPTY_RIDE } ]);
+    const [waitingTimes, setWaitingTimes] = useState([ { ...EMPTY_WAIT } ]);
     const [routeInput, setRouteInput] = useState('');
     const isLoadedRef = useRef(false);
 
@@ -98,12 +100,16 @@ const LokLogEditor = () => {
                             notes: data.notes || ''
                         });
 
-                        // Ensure at least one empty segment if list is empty
+                        // Ensure at least one empty item if lists are empty
                         const loadedSegments = Array.isArray(data.segments) ? data.segments : [];
                         setSegments(loadedSegments.length > 0 ? loadedSegments : [ { ...EMPTY_SEGMENT } ]);
 
-                        setGuestRides(safeParse(data.guest_rides));
-                        setWaitingTimes(safeParse(data.waiting_times));
+                        const loadedGuestRides = safeParse(data.guest_rides);
+                        setGuestRides(loadedGuestRides.length > 0 ? loadedGuestRides : [ { ...EMPTY_RIDE } ]);
+
+                        const loadedWaitingTimes = safeParse(data.waiting_times);
+                        setWaitingTimes(loadedWaitingTimes.length > 0 ? loadedWaitingTimes : [ { ...EMPTY_WAIT } ]);
+
                     } else {
                         // Reset if no data found (New Day)
                         setShift({
@@ -114,8 +120,8 @@ const LokLogEditor = () => {
                             flags: {}, notes: ''
                         });
                         setSegments([ { ...EMPTY_SEGMENT } ]);
-                        setGuestRides([]);
-                        setWaitingTimes([]);
+                        setGuestRides([ { ...EMPTY_RIDE } ]);
+                        setWaitingTimes([ { ...EMPTY_WAIT } ]);
                     }
                     isLoadedRef.current = true;
                 }
@@ -152,18 +158,23 @@ const LokLogEditor = () => {
                 }
             }
 
-            // Filter out empty placeholder segments before saving
+            // Filter out empty placeholder items before saving
             const validSegments = segments.filter(s =>
                 s.from_code || s.to_code || s.train_nr || s.tfz || s.departure || s.arrival || s.notes
             );
+            const validGuestRides = guestRides.filter(r => r.from || r.to || r.dep || r.arr);
+            const validWaitingTimes = waitingTimes.filter(w => w.start || w.end || w.loc || w.reason);
 
-            // We pass validSegments to saveLocal, but we keep the placeholders in local state (UI)
+            // We pass valid items to saveLocal, but we keep the placeholders in local state (UI)
             const dataToSave = {
                 ...currentData,
-                segments: validSegments
+                segments: validSegments,
+                guestRides: validGuestRides,
+                waitingTimes: validWaitingTimes
             };
 
             // If validSegments are empty, explicitly force clear to bypass backend safety net
+            // Note: We prioritize segment check for force_clear as that's the main safety net trigger
             saveLocal(dataToSave, { force_clear: validSegments.length === 0 });
         }, 1000);
 
@@ -226,8 +237,8 @@ const LokLogEditor = () => {
                 flags: {}, notes: ''
             });
             setSegments([ { ...EMPTY_SEGMENT } ]);
-            setGuestRides([]);
-            setWaitingTimes([]);
+            setGuestRides([ { ...EMPTY_RIDE } ]);
+            setWaitingTimes([ { ...EMPTY_WAIT } ]);
 
             // Use deleteLocal to remove from DB completely
             deleteLocal();
@@ -295,11 +306,11 @@ const LokLogEditor = () => {
                 </div>
 
                 <div className="flex items-center gap-1 bg-dark p-1 rounded-lg border border-gray-700">
-                    <button onClick={() => changeDate(-1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><Calendar size={18} /></button>
+                    <button onClick={() => changeDate(-1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><ChevronLeft size={18} /></button>
                     <div className="flex items-center gap-2 px-2 border-x border-gray-700/50">
                         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-transparent text-white py-1 outline-none font-mono text-sm uppercase" />
                     </div>
-                    <button onClick={() => changeDate(1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><Calendar size={18} /></button>
+                    <button onClick={() => changeDate(1)} className="p-2 hover:bg-gray-700 text-gray-400 hover:text-white rounded-md transition"><ChevronRight size={18} /></button>
                 </div>
             </div>
 
@@ -330,7 +341,7 @@ const LokLogEditor = () => {
                             onKeyDown={e => e.key === 'Enter' && handleRouteAdd()}
                         />
                         <button onClick={handleRouteAdd} className="bg-accent-blue text-white p-3 rounded-xl hover:bg-blue-600 transition">
-                            <Plus size={20} />
+                            <PawPrint size={20} />
                         </button>
                     </div>
 
