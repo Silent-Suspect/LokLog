@@ -45,7 +45,10 @@ const LokLogEditor = () => {
         const handleStatus = () => setIsOnline(navigator.onLine);
         window.addEventListener('online', handleStatus);
         window.addEventListener('offline', handleStatus);
-        return () => window.removeEventListener('online', handleStatus);
+        return () => {
+            window.removeEventListener('online', handleStatus);
+            window.removeEventListener('offline', handleStatus);
+        };
     }, []);
 
     // 1. SYNC & DATA HOOK
@@ -59,9 +62,9 @@ const LokLogEditor = () => {
         energy2_start: '', energy2_end: '',
         flags: {}, notes: ''
     });
-    const [segments, setSegments] = useState([ { ...EMPTY_SEGMENT } ]);
-    const [guestRides, setGuestRides] = useState([ { ...EMPTY_RIDE } ]);
-    const [waitingTimes, setWaitingTimes] = useState([ { ...EMPTY_WAIT } ]);
+    const [segments, setSegments] = useState([{ ...EMPTY_SEGMENT }]);
+    const [guestRides, setGuestRides] = useState([{ ...EMPTY_RIDE }]);
+    const [waitingTimes, setWaitingTimes] = useState([{ ...EMPTY_WAIT }]);
     const [routeInput, setRouteInput] = useState('');
     const isLoadedRef = useRef(false);
 
@@ -102,13 +105,13 @@ const LokLogEditor = () => {
 
                         // Ensure at least one empty item if lists are empty
                         const loadedSegments = Array.isArray(data.segments) ? data.segments : [];
-                        setSegments(loadedSegments.length > 0 ? loadedSegments : [ { ...EMPTY_SEGMENT } ]);
+                        setSegments(loadedSegments.length > 0 ? loadedSegments : [{ ...EMPTY_SEGMENT }]);
 
                         const loadedGuestRides = safeParse(data.guest_rides);
-                        setGuestRides(loadedGuestRides.length > 0 ? loadedGuestRides : [ { ...EMPTY_RIDE } ]);
+                        setGuestRides(loadedGuestRides.length > 0 ? loadedGuestRides : [{ ...EMPTY_RIDE }]);
 
                         const loadedWaitingTimes = safeParse(data.waiting_times);
-                        setWaitingTimes(loadedWaitingTimes.length > 0 ? loadedWaitingTimes : [ { ...EMPTY_WAIT } ]);
+                        setWaitingTimes(loadedWaitingTimes.length > 0 ? loadedWaitingTimes : [{ ...EMPTY_WAIT }]);
 
                     } else {
                         // Reset if no data found (New Day)
@@ -119,9 +122,9 @@ const LokLogEditor = () => {
                             energy2_start: '', energy2_end: '',
                             flags: {}, notes: ''
                         });
-                        setSegments([ { ...EMPTY_SEGMENT } ]);
-                        setGuestRides([ { ...EMPTY_RIDE } ]);
-                        setWaitingTimes([ { ...EMPTY_WAIT } ]);
+                        setSegments([{ ...EMPTY_SEGMENT }]);
+                        setGuestRides([{ ...EMPTY_RIDE }]);
+                        setWaitingTimes([{ ...EMPTY_WAIT }]);
                     }
                     isLoadedRef.current = true;
                 }
@@ -236,9 +239,9 @@ const LokLogEditor = () => {
                 energy2_start: '', energy2_end: '',
                 flags: {}, notes: ''
             });
-            setSegments([ { ...EMPTY_SEGMENT } ]);
-            setGuestRides([ { ...EMPTY_RIDE } ]);
-            setWaitingTimes([ { ...EMPTY_WAIT } ]);
+            setSegments([{ ...EMPTY_SEGMENT }]);
+            setGuestRides([{ ...EMPTY_RIDE }]);
+            setWaitingTimes([{ ...EMPTY_WAIT }]);
 
             // Use deleteLocal to remove from DB completely
             deleteLocal();
@@ -297,8 +300,8 @@ const LokLogEditor = () => {
                         )}
                         {/* SYNC STATUS INDICATOR */}
                         <div className="ml-4">
-                            {status === 'syncing' && <span className="text-yellow-500 text-xs flex items-center gap-1"><RefreshCw size={12} className="animate-spin"/> Syncing...</span>}
-                            {status === 'saved' && <span className="text-green-500 text-xs flex items-center gap-1"><CheckSquare size={12}/> Saved</span>}
+                            {status === 'syncing' && <span className="text-yellow-500 text-xs flex items-center gap-1"><RefreshCw size={12} className="animate-spin" /> Syncing...</span>}
+                            {status === 'saved' && <span className="text-green-500 text-xs flex items-center gap-1"><CheckSquare size={12} /> Saved</span>}
                             {status === 'error' && <span className="text-red-500 text-xs">Sync Error</span>}
                         </div>
                     </div>
@@ -323,7 +326,7 @@ const LokLogEditor = () => {
                     <ShiftCounters shift={shift} setShift={setShift} />
                     <ShiftFlags
                         flags={shift.flags}
-                        setFlags={(val) => setShift(s => ({...s, flags: typeof val === 'function' ? val(s.flags) : val }))}
+                        setFlags={(val) => setShift(s => ({ ...s, flags: typeof val === 'function' ? val(s.flags) : val }))}
                     />
                 </div>
 
@@ -364,7 +367,7 @@ const LokLogEditor = () => {
                 {/* Reset */}
                 <div className="col-span-1 lg:col-span-12 pt-8 border-t border-gray-800">
                     <button onClick={handleResetDay} className="mx-auto block text-red-500 hover:text-red-400 text-sm flex items-center gap-2">
-                        <Trash2 size={16}/> Tag komplett zurücksetzen
+                        <Trash2 size={16} /> Tag komplett zurücksetzen
                     </button>
                 </div>
             </div>
