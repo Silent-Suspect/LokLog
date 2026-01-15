@@ -226,9 +226,9 @@ export const useShiftSync = (date, isOnline) => {
                         const payload = {
                             shift: {
                                 ...record,
-                                guest_rides: JSON.stringify(record.guest_rides || []),
-                                waiting_times: JSON.stringify(record.waiting_times || []),
-                                status_json: JSON.stringify(record.flags || {}),
+                                guest_rides: record.guest_rides || [],
+                                waiting_times: record.waiting_times || [],
+                                flags: record.flags || {},
                                 energy_18_start: record.energy1_start,
                                 energy_18_end: record.energy1_end,
                                 energy_28_start: record.energy2_start,
