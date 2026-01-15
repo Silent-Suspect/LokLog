@@ -7,8 +7,8 @@ const Sidebar = ({ isOpen }) => {
 
   const apps = [
     { icon: LayoutGrid, label: 'Dashboard', path: '/' },
-    { icon: Book, label: 'Fahrtenbuch', path: '/fahrtenbuch' },
     { icon: TrainFront, label: 'Fahrtbericht', path: '/loklog' },
+    { icon: Book, label: 'Fahrtenbuch', path: '/fahrtenbuch' },
     { icon: Binary, label: 'Decoder', path: '/decoder' },
     { icon: Mail, label: 'Email Vorlagen', path: '/email-templates' },
   ];

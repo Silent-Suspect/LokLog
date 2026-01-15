@@ -56,29 +56,18 @@ const ShiftEntry = ({ data }) => {
 
     const routeDisplay = getRouteString(segments);
 
-    // Flags
-    const hasGuestRides = shift.guest_rides && shift.guest_rides !== '[]';
-    const hasWaitingTimes = shift.waiting_times && shift.waiting_times !== '[]';
+    // Check if list has content (handles array input)
+    const hasContent = (list) => {
+        if (!list || !Array.isArray(list) || list.length === 0) return false;
 
-    // Parse guest/wait if they are strings (JSON from DB)
-    const isActuallyEmpty = (jsonStr) => {
-        if (!jsonStr) return true;
-        try {
-            const parsed = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
-            // Check if it's an array and has at least one item that isn't just empty fields
-            if (!Array.isArray(parsed) || parsed.length === 0) return true;
-
-            // Check for non-empty content (naive check, assumes backend/frontend saves cleaned data or we check specific fields)
-            // Based on LokLogEditor, empty items are sometimes saved as placeholders.
-            // We should check if any field has content.
-            return !parsed.some(item => Object.values(item).some(val => val && val.toString().trim() !== ''));
-        } catch {
-            return true;
-        }
+        // Filter out empty/placeholder entries (must have at least one field filled)
+        return list.some(item =>
+            Object.values(item).some(val => val && String(val).trim() !== '')
+        );
     };
 
-    const showGuestBadge = !isActuallyEmpty(shift.guest_rides);
-    const showWaitBadge = !isActuallyEmpty(shift.waiting_times);
+    const showGuestBadge = hasContent(shift.guest_rides);
+    const showWaitBadge = hasContent(shift.waiting_times);
 
     return (
         <div

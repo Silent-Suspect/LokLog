@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
-import { TrainFront, Binary, ShieldAlert, Mail } from 'lucide-react';
+import { TrainFront, Binary, ShieldAlert, Mail, Book } from 'lucide-react';
 import { useAdmin } from '../../hooks/useAdmin';
 import LiveClock from '../../components/LiveClock';
 
@@ -11,7 +11,7 @@ const DashboardHome = () => {
 
     const apps = [
         {
-            title: 'LokLog',
+            title: 'Fahrtbericht',
             description: 'Fahrtenbuch & Zeiterfassung',
             icon: TrainFront,
             color: 'text-accent-blue',
@@ -19,6 +19,16 @@ const DashboardHome = () => {
             borderColor: 'group-hover:border-accent-blue/50',
             btnText: 'Starten',
             path: '/loklog',
+        },
+        {
+            title: 'Fahrtenbuch',
+            description: 'Monatsübersicht & Historie',
+            icon: Book,
+            color: 'text-orange-400',
+            bgColor: 'bg-orange-400/10',
+            borderColor: 'group-hover:border-orange-400/50',
+            btnText: 'Ansehen',
+            path: '/fahrtenbuch',
         },
         {
             title: 'Decoder',

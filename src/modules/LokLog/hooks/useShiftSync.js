@@ -210,6 +210,19 @@ export const useShiftSync = (date, isOnline) => {
                         });
                     } else {
                         // PUT LOGIC
+
+                        // Safety Check: Preventing accidental data wipe
+                        // If segments are empty but force_clear is NOT true, this might be a glitch.
+                        // We skip upload to protect server data.
+                        const hasSegments = record.segments && record.segments.length > 0;
+                        if (!hasSegments && !record.force_clear) {
+                            console.warn("🛡️ Upload Blocked: Attempted to upload empty segments without force_clear.");
+                            // We mark as 'saved' locally to stop retry loop, but do not send to server.
+                            // This effectively discards the local empty state if it was a glitch.
+                            await db.shifts.update(record.id, { dirty: 0 });
+                            continue;
+                        }
+
                         const payload = {
                             shift: {
                                 ...record,
