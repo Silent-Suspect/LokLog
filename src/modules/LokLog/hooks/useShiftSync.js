@@ -107,9 +107,18 @@ export const useShiftSync = (date, isOnline) => {
                         console.warn("Failed to parse status_json from server", e);
                     }
 
+                    // FIX: Normalize segments schema (from_station -> from_code)
+                    // The server DB uses 'from_station'/'to_station', but the UI expects 'from_code'/'to_code'.
+                    // We map them here so local DB matches UI expectations.
+                    const normalizedSegments = (data.segments || []).map(seg => ({
+                        ...seg,
+                        from_code: seg.from_station || seg.from_code,
+                        to_code: seg.to_station || seg.to_code
+                    }));
+
                     const shiftData = {
                         ...data.shift,
-                        segments: data.segments || [],
+                        segments: normalizedSegments,
                         flags: flags, // Store explicitly as flags for UI
                         updated_at: serverTime,
                         server_id: data.shift.id,
