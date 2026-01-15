@@ -325,15 +325,34 @@ const LokLogEditor = () => {
             await db.shifts.where('date').between(startStr, endStr, true, true).delete();
 
             // Bulk Insert
-            const bulkData = results.map(r => ({
-                ...r.shift,
-                segments: r.segments || [],
-                flags: JSON.parse(r.shift.status_json || '{}'),
-                updated_at: new Date(r.shift.updated_at).getTime(),
-                server_id: r.shift.id,
-                dirty: 0,
-                deleted: 0
-            }));
+            const bulkData = results.map(r => {
+                // Helper: Safe Parse JSON
+                const safeParseList = (val) => {
+                    try {
+                        return typeof val === 'string' ? JSON.parse(val) : (val || []);
+                    } catch { return []; }
+                };
+
+                // Normalize Segments
+                const normalizedSegments = (r.segments || []).map(seg => ({
+                    ...seg,
+                    from_code: seg.from_station || seg.from_code,
+                    to_code: seg.to_station || seg.to_code,
+                    tfz: seg.loco_nr || seg.tfz
+                }));
+
+                return {
+                    ...r.shift,
+                    segments: normalizedSegments,
+                    guest_rides: safeParseList(r.shift.guest_rides),
+                    waiting_times: safeParseList(r.shift.waiting_times),
+                    flags: JSON.parse(r.shift.status_json || '{}'),
+                    updated_at: new Date(r.shift.updated_at).getTime(),
+                    server_id: r.shift.id,
+                    dirty: 0,
+                    deleted: 0
+                };
+            });
 
             if (bulkData.length > 0) {
                  await db.shifts.bulkPut(bulkData);
