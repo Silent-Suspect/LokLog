@@ -21,6 +21,16 @@ export const useShiftSync = (date, isOnline) => {
 
         const fetchServerData = async () => {
             try {
+                // Check local state FIRST
+                const currentLocal = await db.shifts.where('date').equals(date).first();
+
+                // FIX: If local is dirty, DO NOT overwrite with server data to prevent data loss
+                if (currentLocal?.dirty === 1) {
+                    console.log("Local changes pending (dirty). Skipping server overwrite.");
+                    // We do NOT set status to 'syncing' here effectively, or we just exit early.
+                    return;
+                }
+
                 setStatus('syncing');
                 // Get token, potentially forcing refresh if we suspect expiry
                 let token = await getToken();
@@ -80,13 +90,27 @@ export const useShiftSync = (date, isOnline) => {
                 }
 
                 const serverTime = new Date(data.shift.updated_at || 0).getTime();
-                const currentLocal = await db.shifts.where('date').equals(date).first();
+                // We fetch currentLocal again just in case (though unlikely to change in ms)
+                // actually we have 'currentLocal' from above.
                 const localTime = currentLocal?.updated_at || 0;
 
-                if (serverTime > localTime) {
+                // Sync Down if server is newer OR local is missing
+                if (serverTime > localTime || !currentLocal) {
+
+                    // FIX: Map status_json to flags for local UI
+                    let flags = {};
+                    try {
+                        flags = typeof data.shift.status_json === 'string'
+                            ? JSON.parse(data.shift.status_json)
+                            : (data.shift.status_json || {});
+                    } catch (e) {
+                        console.warn("Failed to parse status_json from server", e);
+                    }
+
                     const shiftData = {
                         ...data.shift,
                         segments: data.segments || [],
+                        flags: flags, // Store explicitly as flags for UI
                         updated_at: serverTime,
                         server_id: data.shift.id,
                         dirty: 0,
@@ -94,22 +118,9 @@ export const useShiftSync = (date, isOnline) => {
                     };
 
                     // IMPORTANT: Ensure ID is preserved correctly
-                    // If we receive a UUID from the server, we must ensure local ID matches or we update safely.
-                    // The server sends `data.shift.id` (UUID).
-                    // Dexie uses `++id` (auto-increment) by default schema.
-                    // We must ensure that we don't accidentally create duplicates.
-
                     if (currentLocal?.id) {
                         await db.shifts.update(currentLocal.id, shiftData);
                     } else {
-                        // If we are inserting a new record from server, we might need to handle ID carefully.
-                        // However, since schema is ++id, providing an ID (UUID string) might fail if not handled?
-                        // Actually, Dexie allows providing keys even for auto-increment stores.
-                        // But wait, user issue is about numeric IDs being generated locally.
-                        // Here we just fix the retry logic.
-                        // The user's other concern about IDs (39e6... vs 4.0) will be addressed separately if needed,
-                        // but right now fixing 500 error is priority.
-
                         await db.shifts.put(shiftData);
                     }
                     console.log("Synced Down: Server > Local");
@@ -175,8 +186,6 @@ export const useShiftSync = (date, isOnline) => {
                         };
 
                         // FIX: Prevent numeric IDs (Dexie local PK) from being sent as 'id' to server.
-                        // If we have a server_id (UUID), use it.
-                        // If not, delete 'id' so backend generates a fresh UUID.
                         if (record.server_id) {
                             payload.shift.id = record.server_id;
                         } else if (typeof record.id === 'number') {
@@ -270,9 +279,6 @@ export const useShiftSync = (date, isOnline) => {
             await db.shifts.update(existing.id, record);
         } else {
             // New record. Dexie will assign numeric ID (e.g. 4)
-            // The sync logic will later send this to server.
-            // We modified sync logic to NOT send numeric ID, so server will generate UUID.
-            // Server returns UUID, we save it as `server_id`.
             await db.shifts.put(record);
         }
         setStatus('saved');

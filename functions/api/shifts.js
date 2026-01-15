@@ -12,13 +12,13 @@ export async function onRequestOptions() {
     return new Response(null, { headers: corsHeaders });
 }
 
-// GET: Load Shift for Date
+// GET: Load Shift for Date OR Range
 export async function onRequestGet(context) {
     try {
         const { searchParams } = new URL(context.request.url);
         const date = searchParams.get('date');
-
-        if (!date) return new Response("Missing date parameter", { status: 400, headers: corsHeaders });
+        const start = searchParams.get('start');
+        const end = searchParams.get('end');
 
         // Auth Check
         const authHeader = context.request.headers.get('Authorization');
@@ -28,7 +28,38 @@ export async function onRequestGet(context) {
         const token = authHeader.replace('Bearer ', '');
         const userId = await verifyClerkToken(token, context.env);
 
-        // Fetch Shift
+        // MODE 1: Bulk Range Fetch
+        if (start && end) {
+            const shifts = await context.env.DB.prepare(
+                "SELECT * FROM shifts WHERE user_id = ? AND date >= ? AND date <= ?"
+            ).bind(userId, start, end).all();
+
+            // Fetch segments for all found shifts
+            const shiftIds = shifts.results.map(s => s.id);
+            let allSegments = [];
+
+            if (shiftIds.length > 0) {
+                 // SQLite 'IN' clause limit is usually 999 variables.
+                 // If range is 8 weeks = 60 days, we are fine.
+                 const placeholders = shiftIds.map(() => '?').join(',');
+                 const segRes = await context.env.DB.prepare(
+                     `SELECT * FROM segments WHERE shift_id IN (${placeholders}) ORDER BY order_index ASC`
+                 ).bind(...shiftIds).all();
+                 allSegments = segRes.results;
+            }
+
+            // Combine
+            const results = shifts.results.map(s => ({
+                shift: s,
+                segments: allSegments.filter(seg => seg.shift_id === s.id)
+            }));
+
+            return Response.json({ results }, { headers: corsHeaders });
+        }
+
+        // MODE 2: Single Date Fetch (Legacy / Default)
+        if (!date) return new Response("Missing date parameter", { status: 400, headers: corsHeaders });
+
         const shift = await context.env.DB.prepare(
             "SELECT * FROM shifts WHERE user_id = ? AND date = ?"
         ).bind(userId, date).first();

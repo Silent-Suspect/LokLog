@@ -74,7 +74,10 @@ const processExportData = (segmentsList) => {
     const extraComments = [];
     let overflowCounter = 0;
 
-    segmentsList.forEach(seg => {
+    // FIX: Clone segmentsList to ensure we do not mutate the original application state or database
+    const clonedList = segmentsList.map(s => ({ ...s }));
+
+    clonedList.forEach(seg => {
         let note = seg.notes || '';
         if (note.length > 15) {
             overflowCounter++;
