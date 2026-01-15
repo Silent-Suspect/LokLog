@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useUser } from '@clerk/clerk-react';
-import { FileDown, PawPrint, Trash2, TrainFront, CheckSquare, ChevronsLeft, ChevronsRight, Cloud, RefreshCw } from 'lucide-react';
+import { useUser, useAuth } from '@clerk/clerk-react';
+import { FileDown, PawPrint, Trash2, TrainFront, CheckSquare, ChevronsLeft, ChevronsRight, Cloud, RefreshCw, Bug } from 'lucide-react';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
 import { useUserSettings } from '../../hooks/useUserSettings';
 import { db } from '../../db/loklogDb';
@@ -29,6 +29,7 @@ const EMPTY_WAIT = { start: '', end: '', loc: '', reason: '' };
 const LokLogEditor = () => {
     const { isConnected, uploadFile } = useGoogleDrive();
     const { user } = useUser();
+    const { getToken } = useAuth();
     const { settings } = useUserSettings();
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -89,6 +90,15 @@ const LokLogEditor = () => {
                             } catch { return []; }
                         };
 
+                        // Fallback logic for flags
+                        let flags = data.flags || {};
+                        if (!data.flags && data.status_json) {
+                            try { flags = typeof data.status_json === 'string' ? JSON.parse(data.status_json) : data.status_json; } catch {}
+                        }
+                        if (typeof flags === 'string') {
+                            try { flags = JSON.parse(flags); } catch { flags = {}; }
+                        }
+
                         setShift({
                             start_time: data.start_time || '',
                             end_time: data.end_time || '',
@@ -99,7 +109,7 @@ const LokLogEditor = () => {
                             energy1_end: data.energy1_end || '',
                             energy2_start: data.energy2_start || '',
                             energy2_end: data.energy2_end || '',
-                            flags: typeof data.flags === 'string' ? JSON.parse(data.flags || '{}') : (data.flags || {}),
+                            flags: flags,
                             notes: data.notes || ''
                         });
 
@@ -248,6 +258,68 @@ const LokLogEditor = () => {
         }
     };
 
+    // RESYNC DEBUG TOOL
+    const handleForceResync = async () => {
+        if (!isOnline) {
+            showToast('Nur online möglich!', 'error');
+            return;
+        }
+        if (!window.confirm("Achtung: Dies löscht alle lokalen Daten der letzten 4 Wochen und lädt sie neu vom Server. Ungespeicherte Änderungen gehen verloren.")) {
+            return;
+        }
+
+        try {
+            showToast('Lade Daten...', 'info');
+            const now = new Date();
+            // 4 weeks back
+            const start = new Date(now);
+            start.setDate(start.getDate() - 28);
+            const startStr = start.toISOString().split('T')[0];
+            // 4 weeks forward
+            const end = new Date(now);
+            end.setDate(end.getDate() + 28);
+            const endStr = end.toISOString().split('T')[0];
+
+            const token = await getToken();
+            const res = await fetch(`/api/shifts?start=${startStr}&end=${endStr}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!res.ok) throw new Error("Server Error");
+            const { results } = await res.json();
+
+            // Clear local range
+            await db.shifts.where('date').between(startStr, endStr, true, true).delete();
+
+            // Bulk Insert
+            const bulkData = results.map(r => ({
+                ...r.shift,
+                segments: r.segments || [],
+                flags: JSON.parse(r.shift.status_json || '{}'),
+                updated_at: new Date(r.shift.updated_at).getTime(),
+                server_id: r.shift.id,
+                dirty: 0,
+                deleted: 0
+            }));
+
+            if (bulkData.length > 0) {
+                 await db.shifts.bulkPut(bulkData);
+            }
+
+            showToast(`Fertig! ${bulkData.length} Schichten geladen.`, 'success');
+            // Force reload current day by toggling existing hydration trigger mechanism logic?
+            // Actually, `useLiveQuery` in `useShiftSync` should pick up changes automatically if keys match.
+            // But we might need to manually trigger if the current date was one of them.
+            // Let's just reload the page for safety or trigger a re-fetch.
+            // Actually, we can just use window.location.reload() for a hard reset of state.
+            setTimeout(() => window.location.reload(), 1000);
+
+        } catch(e) {
+            console.error(e);
+            showToast('Fehler beim Resync', 'error');
+        }
+    };
+
     // EXPORT (Lazy Loaded)
     const [exporting, setExporting] = useState(false);
 
@@ -364,10 +436,13 @@ const LokLogEditor = () => {
                     </div>
                 </div>
 
-                {/* Reset */}
-                <div className="col-span-1 lg:col-span-12 pt-8 border-t border-gray-800">
-                    <button onClick={handleResetDay} className="mx-auto block text-red-500 hover:text-red-400 text-sm flex items-center gap-2">
+                {/* Reset & Debug */}
+                <div className="col-span-1 lg:col-span-12 pt-8 border-t border-gray-800 flex justify-between items-center">
+                    <button onClick={handleResetDay} className="text-red-500 hover:text-red-400 text-sm flex items-center gap-2">
                         <Trash2 size={16} /> Tag komplett zurücksetzen
+                    </button>
+                    <button onClick={handleForceResync} className="text-gray-500 hover:text-yellow-400 text-xs flex items-center gap-1">
+                        <Bug size={14} /> Debug: Force Resync (±4 Weeks)
                     </button>
                 </div>
             </div>

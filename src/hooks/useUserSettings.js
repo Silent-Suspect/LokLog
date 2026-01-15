@@ -14,13 +14,40 @@ export const useUserSettings = () => {
     const fetchSettings = useCallback(async () => {
         if (!isSignedIn) return;
         try {
-            const token = await getToken();
-            const res = await fetch('/api/settings', {
+            let token = await getToken();
+            let res = await fetch('/api/settings', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+
+            // RETRY LOGIC (Similar to sync)
+            if (res.status === 401 || !res.ok) {
+                 // Clone response to check body without consuming
+                 const clone = res.clone();
+                 let needsRetry = res.status === 401;
+
+                 // Check if it's the "Token Expired" 500 error or similar
+                 if (!needsRetry && res.status === 500) {
+                     try {
+                         const errText = await clone.text();
+                         if (errText.includes("Token Expired")) needsRetry = true;
+                     } catch(e) {}
+                 }
+
+                 if (needsRetry) {
+                     console.log("Settings fetch token expired, retrying...");
+                     token = await getToken({ skipCache: true });
+                     res = await fetch('/api/settings', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                     });
+                 }
+            }
+
             if (res.ok) {
                 const data = await res.json();
                 setSettings(prev => ({ ...prev, ...data, loading: false }));
+            } else {
+                 console.warn("Settings fetch failed after retry", res.status);
+                 setSettings(prev => ({ ...prev, loading: false }));
             }
         } catch (e) {
             console.error("Failed to load settings", e);
@@ -35,13 +62,6 @@ export const useUserSettings = () => {
 
         try {
             const token = await getToken();
-            // Merge with current state to ensure we don't lose other fields
-            // But usually we pass partial updates?
-            // The API expects full object or handles partial?
-            // My SQL ON CONFLICT updates all fields I bind.
-            // So I should send the COMPLETE state + changes.
-
-            // Wait, state update is async. We should use the merged value.
             const merged = { ...settings, ...newSettings };
 
             await fetch('/api/settings', {
