@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useUser, useAuth } from '@clerk/clerk-react';
-import { FileDown, PawPrint, Trash2, TrainFront, CheckSquare, ChevronsLeft, ChevronsRight, Cloud, RefreshCw, Bug } from 'lucide-react';
+import { FileDown, PawPrint, Trash2, TrainFront, CheckSquare, ChevronsLeft, ChevronsRight, Cloud, RefreshCw, Bug, Loader2 } from 'lucide-react';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
 import { useUserSettings } from '../../hooks/useUserSettings';
 import { db } from '../../db/loklogDb';
@@ -68,6 +68,7 @@ const LokLogEditor = () => {
     const [waitingTimes, setWaitingTimes] = useState([{ ...EMPTY_WAIT }]);
     const [routeInput, setRouteInput] = useState('');
     const isLoadedRef = useRef(false);
+    const lastSavedState = useRef(null); // Fix: Track last saved state to prevent phantom dirty writes
 
     // Load from DB into State
     useEffect(() => {
@@ -99,7 +100,7 @@ const LokLogEditor = () => {
                             try { flags = JSON.parse(flags); } catch { flags = {}; }
                         }
 
-                        setShift({
+                        const loadedShift = {
                             start_time: data.start_time || '',
                             end_time: data.end_time || '',
                             pause: data.pause || 0,
@@ -111,30 +112,51 @@ const LokLogEditor = () => {
                             energy2_end: data.energy2_end || '',
                             flags: flags,
                             notes: data.notes || ''
-                        });
+                        };
 
                         // Ensure at least one empty item if lists are empty
                         const loadedSegments = Array.isArray(data.segments) ? data.segments : [];
-                        setSegments(loadedSegments.length > 0 ? loadedSegments : [{ ...EMPTY_SEGMENT }]);
+                        const validSegments = loadedSegments.length > 0 ? loadedSegments : [{ ...EMPTY_SEGMENT }];
 
                         const loadedGuestRides = safeParse(data.guest_rides);
-                        setGuestRides(loadedGuestRides.length > 0 ? loadedGuestRides : [{ ...EMPTY_RIDE }]);
+                        const validGuestRides = loadedGuestRides.length > 0 ? loadedGuestRides : [{ ...EMPTY_RIDE }];
 
                         const loadedWaitingTimes = safeParse(data.waiting_times);
-                        setWaitingTimes(loadedWaitingTimes.length > 0 ? loadedWaitingTimes : [{ ...EMPTY_WAIT }]);
+                        const validWaitingTimes = loadedWaitingTimes.length > 0 ? loadedWaitingTimes : [{ ...EMPTY_WAIT }];
+
+                        setShift(loadedShift);
+                        setSegments(validSegments);
+                        setGuestRides(validGuestRides);
+                        setWaitingTimes(validWaitingTimes);
+
+                        // Capture Initial State as "Last Saved"
+                        lastSavedState.current = JSON.stringify({
+                            shift: loadedShift,
+                            segments: validSegments,
+                            guestRides: validGuestRides,
+                            waitingTimes: validWaitingTimes
+                        });
 
                     } else {
                         // Reset if no data found (New Day)
-                        setShift({
+                        const emptyShift = {
                             start_time: '', end_time: '', pause: 0,
                             km_start: '', km_end: '',
                             energy1_start: '', energy1_end: '',
                             energy2_start: '', energy2_end: '',
                             flags: {}, notes: ''
-                        });
+                        };
+                        setShift(emptyShift);
                         setSegments([{ ...EMPTY_SEGMENT }]);
                         setGuestRides([{ ...EMPTY_RIDE }]);
                         setWaitingTimes([{ ...EMPTY_WAIT }]);
+
+                        lastSavedState.current = JSON.stringify({
+                            shift: emptyShift,
+                            segments: [{ ...EMPTY_SEGMENT }],
+                            guestRides: [{ ...EMPTY_RIDE }],
+                            waitingTimes: [{ ...EMPTY_WAIT }]
+                        });
                     }
                     isLoadedRef.current = true;
                 }
@@ -159,6 +181,13 @@ const LokLogEditor = () => {
                 guestRides,
                 waitingTimes
             };
+
+            const currentString = JSON.stringify(currentData);
+
+            // Fix: Deep compare to prevent phantom writes
+            if (lastSavedState.current === currentString) {
+                return;
+            }
 
             const isEmpty = isDayEmpty(currentData);
 
@@ -189,6 +218,10 @@ const LokLogEditor = () => {
             // If validSegments are empty, explicitly force clear to bypass backend safety net
             // Note: We prioritize segment check for force_clear as that's the main safety net trigger
             saveLocal(dataToSave, { force_clear: validSegments.length === 0 });
+
+            // Update reference
+            lastSavedState.current = currentString;
+
         }, 1000);
 
         return () => clearTimeout(timeoutId);
@@ -460,11 +493,17 @@ const LokLogEditor = () => {
 
                 <button
                     onClick={handleExport}
-                    disabled={exporting}
+                    disabled={exporting || settings.loading}
                     className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold border transition ${isConnected ? 'bg-blue-900/20 text-blue-400 border-blue-900/50 hover:bg-blue-900/30' : 'bg-green-900/20 text-green-400 border-green-900/50 hover:bg-green-900/30'}`}
                 >
-                    {isConnected ? <Cloud size={20} /> : <FileDown size={20} />}
-                    {isConnected ? (exporting ? 'Uploading...' : 'Save to Drive') : 'Export Excel'}
+                    {settings.loading ? (
+                        <span className="flex items-center gap-2"><Loader2 size={20} className="animate-spin" /> Loading...</span>
+                    ) : (
+                        <>
+                            {isConnected ? <Cloud size={20} /> : <FileDown size={20} />}
+                            {isConnected ? (exporting ? 'Uploading...' : 'Save to Drive') : 'Export Excel'}
+                        </>
+                    )}
                 </button>
             </div>
         </div>
