@@ -135,7 +135,8 @@ export const useShiftSync = (date, isOnline) => {
                     const normalizedSegments = (data.segments || []).map(seg => ({
                         ...seg,
                         from_code: seg.from_station || seg.from_code,
-                        to_code: seg.to_station || seg.to_code
+                        to_code: seg.to_station || seg.to_code,
+                        tfz: seg.loco_nr || seg.tfz
                     }));
 
                     const shiftData = {

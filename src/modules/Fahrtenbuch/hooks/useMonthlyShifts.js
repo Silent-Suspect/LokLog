@@ -37,9 +37,21 @@ export const useMonthlyShifts = (year, month) => {
             const data = await res.json();
 
             // API returns { results: [{ shift, segments }, ...] }
-            // We'll just pass this through, or sort it.
-            // Sorting by date is good practice.
-            const sorted = (data.results || []).sort((a, b) =>
+            // Normalization helper
+            const normalizeSegments = (segments) => {
+                return (segments || []).map(seg => ({
+                    ...seg,
+                    from_code: seg.from_station || seg.from_code,
+                    to_code: seg.to_station || seg.to_code,
+                    tfz: seg.loco_nr || seg.tfz
+                }));
+            };
+
+            // Apply normalization and sort
+            const sorted = (data.results || []).map(item => ({
+                ...item,
+                segments: normalizeSegments(item.segments)
+            })).sort((a, b) =>
                 new Date(a.shift.date) - new Date(b.shift.date)
             );
 
