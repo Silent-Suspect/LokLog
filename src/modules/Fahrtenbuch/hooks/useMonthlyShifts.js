@@ -47,9 +47,24 @@ export const useMonthlyShifts = (year, month) => {
                 }));
             };
 
+            // Helper: Safe JSON Parse
+            const safeParse = (val) => {
+                if (!val) return [];
+                if (Array.isArray(val)) return val;
+                try {
+                    const parsed = typeof val === 'string' ? JSON.parse(val) : val;
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch { return []; }
+            };
+
             // Apply normalization and sort
             const sorted = (data.results || []).map(item => ({
                 ...item,
+                shift: {
+                    ...item.shift,
+                    guest_rides: safeParse(item.shift.guest_rides),
+                    waiting_times: safeParse(item.shift.waiting_times)
+                },
                 segments: normalizeSegments(item.segments)
             })).sort((a, b) =>
                 new Date(a.shift.date) - new Date(b.shift.date)

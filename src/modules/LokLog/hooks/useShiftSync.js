@@ -131,6 +131,22 @@ export const useShiftSync = (date, isOnline) => {
                         console.warn("Failed to parse status_json from server", e);
                     }
 
+                    // FIX: Parse guest_rides/waiting_times from JSON strings to Arrays
+                    let guestRides = [];
+                    try {
+                        guestRides = typeof data.shift.guest_rides === 'string'
+                            ? JSON.parse(data.shift.guest_rides)
+                            : (data.shift.guest_rides || []);
+                    } catch (e) { console.warn("Parse error guest_rides", e); }
+
+                    let waitingTimes = [];
+                    try {
+                        waitingTimes = typeof data.shift.waiting_times === 'string'
+                            ? JSON.parse(data.shift.waiting_times)
+                            : (data.shift.waiting_times || []);
+                    } catch (e) { console.warn("Parse error waiting_times", e); }
+
+
                     // FIX: Normalize segments schema
                     const normalizedSegments = (data.segments || []).map(seg => ({
                         ...seg,
@@ -143,6 +159,8 @@ export const useShiftSync = (date, isOnline) => {
                         ...data.shift,
                         segments: normalizedSegments,
                         flags: flags,
+                        guest_rides: guestRides,
+                        waiting_times: waitingTimes,
                         updated_at: serverTime,
                         server_id: data.shift.id,
                         dirty: 0,
