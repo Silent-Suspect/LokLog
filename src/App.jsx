@@ -4,6 +4,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import DashboardHome from './modules/dashboard/DashboardHome';
 import SettingsPage from './modules/Settings/Settings';
 import LokLogEditor from './modules/LokLog/LokLogEditor';
+import Fahrtenbuch from './modules/Fahrtenbuch/Fahrtenbuch';
 import Decoder from './modules/Decoder/Decoder';
 import ExcelDebug from './modules/Dev/ExcelDebug';
 import AdminDashboard from './modules/Admin/AdminDashboard';
@@ -41,6 +42,7 @@ function App() {
                 {/* Main Dashboard Layout Routes */}
                 <Route path="/" element={<DashboardLayout />}>
                   <Route index element={<DashboardHome />} />
+                  <Route path="fahrtenbuch" element={<Fahrtenbuch />} />
                   <Route path="loklog" element={<LokLogEditor />} />
                   <Route path="decoder" element={<Decoder />} />
                   <Route path="email-templates" element={<EmailTemplates />} />

@@ -1,4 +1,4 @@
-import { LayoutGrid, Binary, TrainFront, ShieldAlert, Settings, Mail } from 'lucide-react';
+import { LayoutGrid, Binary, TrainFront, ShieldAlert, Settings, Mail, Book } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAdmin } from '../hooks/useAdmin';
 
@@ -7,7 +7,8 @@ const Sidebar = ({ isOpen }) => {
 
   const apps = [
     { icon: LayoutGrid, label: 'Dashboard', path: '/' },
-    { icon: TrainFront, label: 'LokLog', path: '/loklog' },
+    { icon: Book, label: 'Fahrtenbuch', path: '/fahrtenbuch' },
+    { icon: TrainFront, label: 'Fahrtbericht', path: '/loklog' },
     { icon: Binary, label: 'Decoder', path: '/decoder' },
     { icon: Mail, label: 'Email Vorlagen', path: '/email-templates' },
   ];
