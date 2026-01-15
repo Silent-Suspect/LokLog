@@ -132,18 +132,23 @@ export const useShiftSync = (date, isOnline) => {
                     }
 
                     // FIX: Parse guest_rides/waiting_times from JSON strings to Arrays
+                    // Handle double-encoded JSON (legacy data fix)
                     let guestRides = [];
                     try {
-                        guestRides = typeof data.shift.guest_rides === 'string'
+                        let parsed = typeof data.shift.guest_rides === 'string'
                             ? JSON.parse(data.shift.guest_rides)
                             : (data.shift.guest_rides || []);
+                        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+                        guestRides = Array.isArray(parsed) ? parsed : [];
                     } catch (e) { console.warn("Parse error guest_rides", e); }
 
                     let waitingTimes = [];
                     try {
-                        waitingTimes = typeof data.shift.waiting_times === 'string'
+                        let parsed = typeof data.shift.waiting_times === 'string'
                             ? JSON.parse(data.shift.waiting_times)
                             : (data.shift.waiting_times || []);
+                         if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+                        waitingTimes = Array.isArray(parsed) ? parsed : [];
                     } catch (e) { console.warn("Parse error waiting_times", e); }
 
 

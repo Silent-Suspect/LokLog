@@ -52,7 +52,11 @@ export const useMonthlyShifts = (year, month) => {
                 if (!val) return [];
                 if (Array.isArray(val)) return val;
                 try {
-                    const parsed = typeof val === 'string' ? JSON.parse(val) : val;
+                    let parsed = typeof val === 'string' ? JSON.parse(val) : val;
+                    // Handle double-encoded JSON strings (e.g. "\"[...]\"")
+                    if (typeof parsed === 'string') {
+                        parsed = JSON.parse(parsed);
+                    }
                     return Array.isArray(parsed) ? parsed : [];
                 } catch { return []; }
             };
