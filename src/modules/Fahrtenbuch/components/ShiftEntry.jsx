@@ -56,14 +56,10 @@ const ShiftEntry = ({ data }) => {
 
     const routeDisplay = getRouteString(segments);
 
-    // Check if list has content (handles array input)
+    // Check if list has content
+    // We trust that the saver filters out empty rows, so simple length check is sufficient and robust
     const hasContent = (list) => {
-        if (!list || !Array.isArray(list) || list.length === 0) return false;
-
-        // Filter out empty/placeholder entries (must have at least one field filled)
-        return list.some(item =>
-            Object.values(item).some(val => val && String(val).trim() !== '')
-        );
+        return Array.isArray(list) && list.length > 0;
     };
 
     const showGuestBadge = hasContent(shift.guest_rides);

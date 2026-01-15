@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useUser, useAuth } from '@clerk/clerk-react';
 import { FileDown, PawPrint, Trash2, TrainFront, CheckSquare, ChevronsLeft, ChevronsRight, Cloud, RefreshCw, Bug, Loader2 } from 'lucide-react';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
@@ -27,12 +28,22 @@ const EMPTY_RIDE = { from: '', to: '', dep: '', arr: '' };
 const EMPTY_WAIT = { start: '', end: '', loc: '', reason: '' };
 
 const LokLogEditor = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
     const { isConnected, uploadFile } = useGoogleDrive();
     const { user } = useUser();
     const { getToken } = useAuth();
     const { settings } = useUserSettings();
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // Initialize date from URL or default to today
+    const [date, setDate] = useState(() => {
+        return searchParams.get('date') || new Date().toISOString().split('T')[0];
+    });
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    // Sync URL when date changes
+    useEffect(() => {
+        setSearchParams({ date });
+    }, [date, setSearchParams]);
 
     // Toast State
     const [toast, setToast] = useState({ message: '', type: '', visible: false });
