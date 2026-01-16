@@ -300,8 +300,34 @@ export const useShiftSync = (date, isOnline) => {
             }
         };
 
-        const intervalId = setInterval(syncUp, 5000); // Check every 5s instead of 15s for snappier sync
-        return () => clearInterval(intervalId);
+        // --- Event-Driven Sync Trigger ---
+        const handleDbChanges = (changes) => {
+            const hasDirtyShiftChanges = changes.some(change => {
+                if (change.table !== 'shifts') return false;
+                // Type 1 (Create) or 2 (Update) where the new object is dirty
+                if (change.type === 1 || change.type === 2) {
+                    return change.obj?.dirty === 1;
+                }
+                // A deletion is triggered by an UPDATE setting `deleted: 1, dirty: 1`,
+                // so we don't need to watch for delete events (type 3) themselves.
+                return false;
+            });
+
+            if (hasDirtyShiftChanges) {
+                console.log('Detected dirty shift change, triggering upstream sync.');
+                syncUp();
+            }
+        };
+
+        db.on('changes', handleDbChanges);
+
+        // Also, trigger a sync when we first come online or the component mounts,
+        // in case there are pending changes from an offline session.
+        syncUp();
+
+        return () => {
+            db.on('changes').unsubscribe(handleDbChanges);
+        };
     }, [isOnline, fetchWithRetry]);
 
     // 4. Save Function (Local)
