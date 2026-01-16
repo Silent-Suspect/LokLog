@@ -191,118 +191,101 @@ export const useShiftSync = (date, isOnline) => {
     }, [date, isOnline, fetchWithRetry]);
 
 
-    // 3. Auto-Sync Upstream (PUT/DELETE)
-    useEffect(() => {
-        if (!isOnline) return;
+    // 3. Auto-Sync Upstream (PUT/DELETE) - Reactive Trigger
+    const dirtyRecords = useLiveQuery(() => db.shifts.where('dirty').equals(1).toArray(), []);
 
-        const syncUp = async () => {
-            if (isSyncingRef.current) return;
+    const syncUp = useCallback(async (recordsToSync) => {
+        if (isSyncingRef.current || !recordsToSync || recordsToSync.length === 0) {
+            return;
+        }
 
-            try {
-                const dirtyRecords = await db.shifts.where('dirty').equals(1).toArray();
-                if (dirtyRecords.length === 0) return;
+        try {
+            isSyncingRef.current = true;
+            setStatus('syncing');
 
-                isSyncingRef.current = true;
-                setStatus('syncing');
+            for (const record of recordsToSync) {
+                let res;
 
-                for (const record of dirtyRecords) {
-                    let res;
-
-                    // DELETE LOGIC
-                    if (record.deleted === 1) {
-                        res = await fetchWithRetry(`/api/shifts?date=${record.date}`, {
-                            method: 'DELETE'
-                        });
-                    } else {
-                        // PUT LOGIC
-
-                        // Safety Check: Preventing accidental data wipe
-                        // If segments are empty but force_clear is NOT true, this might be a glitch.
-                        // We skip upload to protect server data.
-                        const hasSegments = record.segments && record.segments.length > 0;
-                        if (!hasSegments && !record.force_clear) {
-                            console.warn("🛡️ Upload Blocked: Attempted to upload empty segments without force_clear.");
-                            // We mark as 'saved' locally to stop retry loop, but do not send to server.
-                            // This effectively discards the local empty state if it was a glitch.
-                            await db.shifts.update(record.id, { dirty: 0 });
-                            continue;
-                        }
-
-                        const payload = {
-                            shift: {
-                                ...record,
-                                guest_rides: record.guest_rides || [],
-                                waiting_times: record.waiting_times || [],
-                                flags: record.flags || {},
-                                energy_18_start: record.energy1_start,
-                                energy_18_end: record.energy1_end,
-                                energy_28_start: record.energy2_start,
-                                energy_28_end: record.energy2_end,
-                                comments: record.notes,
-                                updated_at: record.updated_at
-                            },
-                            segments: record.segments || [],
-                            force_clear: !!record.force_clear
-                        };
-
-                        // Prevent numeric IDs
-                        if (record.server_id) {
-                            payload.shift.id = record.server_id;
-                        } else if (typeof record.id === 'number') {
-                            delete payload.shift.id;
-                        }
-
-                        res = await fetchWithRetry('/api/shifts', {
-                            method: 'PUT',
-                            body: JSON.stringify(payload)
-                        });
+                // DELETE LOGIC
+                if (record.deleted === 1) {
+                    res = await fetchWithRetry(`/api/shifts?date=${record.date}`, {
+                        method: 'DELETE'
+                    });
+                } else {
+                    // PUT LOGIC
+                    const hasSegments = record.segments && record.segments.length > 0;
+                    if (!hasSegments && !record.force_clear) {
+                        console.warn("🛡️ Upload Blocked: Attempted to upload empty segments without force_clear.");
+                        await db.shifts.update(record.id, { dirty: 0 });
+                        continue;
                     }
 
-                    if (!res.ok) {
-                        // Attempt to read error
-                        let errorDetails = '';
-                        try { errorDetails = await res.text(); } catch(e){}
-                        throw new Error(`Sync failed ${res.status}: ${errorDetails}`);
+                    const payload = {
+                        shift: {
+                            ...record,
+                            guest_rides: record.guest_rides || [],
+                            waiting_times: record.waiting_times || [],
+                            flags: record.flags || {},
+                            energy_18_start: record.energy1_start,
+                            energy_18_end: record.energy1_end,
+                            energy_28_start: record.energy2_start,
+                            energy_28_end: record.energy2_end,
+                            comments: record.notes,
+                            updated_at: record.updated_at
+                        },
+                        segments: record.segments || [],
+                        force_clear: !!record.force_clear
+                    };
+
+                    if (record.server_id) {
+                        payload.shift.id = record.server_id;
+                    } else if (typeof record.id === 'number') {
+                        delete payload.shift.id;
                     }
 
-                    const responseData = await res.json();
-
-                    // Cleanup Local
-                    if (record.deleted === 1) {
-                        await db.shifts.delete(record.id);
-                    } else {
-                        await db.shifts.update(record.id, {
-                            dirty: 0,
-                            force_clear: false,
-                            server_id: responseData.id,
-                            updated_at: new Date(responseData.updated_at || Date.now()).getTime() // Sync timestamps
-                        });
-                    }
+                    res = await fetchWithRetry('/api/shifts', {
+                        method: 'PUT',
+                        body: JSON.stringify(payload)
+                    });
                 }
 
-                setStatus('saved');
-                setLastSync(new Date());
+                if (!res.ok) {
+                    let errorDetails = '';
+                    try { errorDetails = await res.text(); } catch(e){}
+                    throw new Error(`Sync failed ${res.status}: ${errorDetails}`);
+                }
 
-                // Reset to idle after delay
-                setTimeout(() => {
-                    if (isSyncingRef.current) setStatus('idle');
-                }, 2000);
+                const responseData = await res.json();
 
-            } catch (e) {
-                console.error("📤 Sync Up Error", e);
-                setStatus('error');
-            } finally {
-                isSyncingRef.current = false;
-                // Double safety to ensure we don't get stuck in 'syncing' if error occurred
-                setTimeout(() => {
-                     setStatus(prev => prev === 'syncing' ? 'error' : prev);
-                }, 500);
+                if (record.deleted === 1) {
+                    await db.shifts.delete(record.id);
+                } else {
+                    await db.shifts.update(record.id, {
+                        dirty: 0,
+                        force_clear: false,
+                        server_id: responseData.id,
+                        updated_at: new Date(responseData.updated_at || Date.now()).getTime()
+                    });
+                }
             }
-        };
 
-        const intervalId = setInterval(syncUp, 5000); // Check every 5s instead of 15s for snappier sync
-        return () => clearInterval(intervalId);
-    }, [isOnline, fetchWithRetry]);
+            setStatus('saved');
+            setLastSync(new Date());
+            setTimeout(() => setStatus('idle'), 2000);
+
+        } catch (e) {
+            console.error("📤 Sync Up Error", e);
+            setStatus('error');
+        } finally {
+            isSyncingRef.current = false;
+        }
+    }, [fetchWithRetry]);
+
+    useEffect(() => {
+        if (isOnline && dirtyRecords && dirtyRecords.length > 0) {
+            syncUp(dirtyRecords);
+        }
+    }, [isOnline, dirtyRecords, syncUp]);
 
     // 4. Save Function (Local)
     const saveLocal = useCallback(async (newData, options = {}) => {
