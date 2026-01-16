@@ -26,6 +26,13 @@ import { parseRouteInput } from './utils/routeParser';
 const EMPTY_SEGMENT = { from_code: '', to_code: '', train_nr: '', tfz: '', departure: '', arrival: '', notes: '' };
 const EMPTY_RIDE = { from: '', to: '', dep: '', arr: '' };
 const EMPTY_WAIT = { start: '', end: '', loc: '', reason: '' };
+const EMPTY_SHIFT = {
+    start_time: '', end_time: '', pause: 0,
+    km_start: '', km_end: '',
+    energy1_start: '', energy1_end: '',
+    energy2_start: '', energy2_end: '',
+    flags: {}, notes: ''
+};
 
 const LokLogEditor = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -67,13 +74,7 @@ const LokLogEditor = () => {
     const { saveLocal, deleteLocal, status, reloadTrigger } = useShiftSync(date, isOnline);
 
     // 2. LOCAL STATE
-    const [shift, setShift] = useState({
-        start_time: '', end_time: '', pause: 0,
-        km_start: '', km_end: '',
-        energy1_start: '', energy1_end: '',
-        energy2_start: '', energy2_end: '',
-        flags: {}, notes: ''
-    });
+    const [shift, setShift] = useState(EMPTY_SHIFT);
     const [segments, setSegments] = useState([{ ...EMPTY_SEGMENT }]);
     const [guestRides, setGuestRides] = useState([{ ...EMPTY_RIDE }]);
     const [waitingTimes, setWaitingTimes] = useState([{ ...EMPTY_WAIT }]);
@@ -83,6 +84,12 @@ const LokLogEditor = () => {
 
     // Load from DB into State
     useEffect(() => {
+        // RESET STATE SYNCHRONOUSLY to prevent stale data persistence
+        setShift(EMPTY_SHIFT);
+        setSegments([{ ...EMPTY_SEGMENT }]);
+        setGuestRides([{ ...EMPTY_RIDE }]);
+        setWaitingTimes([{ ...EMPTY_WAIT }]);
+
         let isActive = true;
         isLoadedRef.current = false;
 
