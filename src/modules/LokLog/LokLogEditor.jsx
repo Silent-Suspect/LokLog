@@ -453,14 +453,14 @@ const LokLogEditor = () => {
             </div>
 
             {/* Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* FORCE REMOUNT ON DATE CHANGE */}
+            <div key={date} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
                 {/* LEFT: Shift Inputs */}
                 <div className="lg:col-span-4 space-y-6">
-                    <ShiftTimesInput key={date} shift={shift} setShift={setShift} durationString={durationString} />
-                    <ShiftCounters key={date} shift={shift} setShift={setShift} />
+                    <ShiftTimesInput shift={shift} setShift={setShift} durationString={durationString} />
+                    <ShiftCounters shift={shift} setShift={setShift} />
                     <ShiftFlags
-                        key={date}
                         flags={shift.flags}
                         setFlags={(val) => setShift(s => ({ ...s, flags: typeof val === 'function' ? val(s.flags) : val }))}
                     />
@@ -484,9 +484,9 @@ const LokLogEditor = () => {
                         </button>
                     </div>
 
-                    <SegmentsList key={date} segments={segments} setSegments={setSegments} />
-                    <GuestRidesList key={date} guestRides={guestRides} setGuestRides={setGuestRides} />
-                    <WaitingTimesList key={date} waitingTimes={waitingTimes} setWaitingTimes={setWaitingTimes} />
+                    <SegmentsList segments={segments} setSegments={setSegments} />
+                    <GuestRidesList guestRides={guestRides} setGuestRides={setGuestRides} />
+                    <WaitingTimesList waitingTimes={waitingTimes} setWaitingTimes={setWaitingTimes} />
 
                     {/* Notes */}
                     <div className="bg-card p-5 rounded-2xl border border-gray-800 space-y-2">
