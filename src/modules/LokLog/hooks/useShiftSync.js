@@ -131,17 +131,41 @@ export const useShiftSync = (date, isOnline) => {
                         console.warn("Failed to parse status_json from server", e);
                     }
 
+                    // FIX: Parse guest_rides/waiting_times from JSON strings to Arrays
+                    // Handle double-encoded JSON (legacy data fix)
+                    let guestRides = [];
+                    try {
+                        let parsed = typeof data.shift.guest_rides === 'string'
+                            ? JSON.parse(data.shift.guest_rides)
+                            : (data.shift.guest_rides || []);
+                        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+                        guestRides = Array.isArray(parsed) ? parsed : [];
+                    } catch (e) { console.warn("Parse error guest_rides", e); }
+
+                    let waitingTimes = [];
+                    try {
+                        let parsed = typeof data.shift.waiting_times === 'string'
+                            ? JSON.parse(data.shift.waiting_times)
+                            : (data.shift.waiting_times || []);
+                         if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+                        waitingTimes = Array.isArray(parsed) ? parsed : [];
+                    } catch (e) { console.warn("Parse error waiting_times", e); }
+
+
                     // FIX: Normalize segments schema
                     const normalizedSegments = (data.segments || []).map(seg => ({
                         ...seg,
                         from_code: seg.from_station || seg.from_code,
-                        to_code: seg.to_station || seg.to_code
+                        to_code: seg.to_station || seg.to_code,
+                        tfz: seg.loco_nr || seg.tfz
                     }));
 
                     const shiftData = {
                         ...data.shift,
                         segments: normalizedSegments,
                         flags: flags,
+                        guest_rides: guestRides,
+                        waiting_times: waitingTimes,
                         updated_at: serverTime,
                         server_id: data.shift.id,
                         dirty: 0,
@@ -191,12 +215,25 @@ export const useShiftSync = (date, isOnline) => {
                         });
                     } else {
                         // PUT LOGIC
+
+                        // Safety Check: Preventing accidental data wipe
+                        // If segments are empty but force_clear is NOT true, this might be a glitch.
+                        // We skip upload to protect server data.
+                        const hasSegments = record.segments && record.segments.length > 0;
+                        if (!hasSegments && !record.force_clear) {
+                            console.warn("🛡️ Upload Blocked: Attempted to upload empty segments without force_clear.");
+                            // We mark as 'saved' locally to stop retry loop, but do not send to server.
+                            // This effectively discards the local empty state if it was a glitch.
+                            await db.shifts.update(record.id, { dirty: 0 });
+                            continue;
+                        }
+
                         const payload = {
                             shift: {
                                 ...record,
-                                guest_rides: JSON.stringify(record.guest_rides || []),
-                                waiting_times: JSON.stringify(record.waiting_times || []),
-                                status_json: JSON.stringify(record.flags || {}),
+                                guest_rides: record.guest_rides || [],
+                                waiting_times: record.waiting_times || [],
+                                flags: record.flags || {},
                                 energy_18_start: record.energy1_start,
                                 energy_18_end: record.energy1_end,
                                 energy_28_start: record.energy2_start,

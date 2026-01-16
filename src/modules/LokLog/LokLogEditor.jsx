@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useUser, useAuth } from '@clerk/clerk-react';
 import { FileDown, PawPrint, Trash2, TrainFront, CheckSquare, ChevronsLeft, ChevronsRight, Cloud, RefreshCw, Bug, Loader2 } from 'lucide-react';
 import { useGoogleDrive } from '../../hooks/useGoogleDrive';
@@ -25,14 +26,31 @@ import { parseRouteInput } from './utils/routeParser';
 const EMPTY_SEGMENT = { from_code: '', to_code: '', train_nr: '', tfz: '', departure: '', arrival: '', notes: '' };
 const EMPTY_RIDE = { from: '', to: '', dep: '', arr: '' };
 const EMPTY_WAIT = { start: '', end: '', loc: '', reason: '' };
+const EMPTY_SHIFT = {
+    start_time: '', end_time: '', pause: 0,
+    km_start: '', km_end: '',
+    energy1_start: '', energy1_end: '',
+    energy2_start: '', energy2_end: '',
+    flags: {}, notes: ''
+};
 
 const LokLogEditor = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
     const { isConnected, uploadFile } = useGoogleDrive();
     const { user } = useUser();
     const { getToken } = useAuth();
     const { settings } = useUserSettings();
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // Initialize date from URL or default to today
+    const [date, setDate] = useState(() => {
+        return searchParams.get('date') || new Date().toISOString().split('T')[0];
+    });
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    // Sync URL when date changes
+    useEffect(() => {
+        setSearchParams({ date });
+    }, [date, setSearchParams]);
 
     // Toast State
     const [toast, setToast] = useState({ message: '', type: '', visible: false });
@@ -56,13 +74,7 @@ const LokLogEditor = () => {
     const { saveLocal, deleteLocal, status, reloadTrigger } = useShiftSync(date, isOnline);
 
     // 2. LOCAL STATE
-    const [shift, setShift] = useState({
-        start_time: '', end_time: '', pause: 0,
-        km_start: '', km_end: '',
-        energy1_start: '', energy1_end: '',
-        energy2_start: '', energy2_end: '',
-        flags: {}, notes: ''
-    });
+    const [shift, setShift] = useState(EMPTY_SHIFT);
     const [segments, setSegments] = useState([{ ...EMPTY_SEGMENT }]);
     const [guestRides, setGuestRides] = useState([{ ...EMPTY_RIDE }]);
     const [waitingTimes, setWaitingTimes] = useState([{ ...EMPTY_WAIT }]);
@@ -72,6 +84,12 @@ const LokLogEditor = () => {
 
     // Load from DB into State
     useEffect(() => {
+        // RESET STATE SYNCHRONOUSLY to prevent stale data persistence
+        setShift(EMPTY_SHIFT);
+        setSegments([{ ...EMPTY_SEGMENT }]);
+        setGuestRides([{ ...EMPTY_RIDE }]);
+        setWaitingTimes([{ ...EMPTY_WAIT }]);
+
         let isActive = true;
         isLoadedRef.current = false;
 
@@ -325,15 +343,34 @@ const LokLogEditor = () => {
             await db.shifts.where('date').between(startStr, endStr, true, true).delete();
 
             // Bulk Insert
-            const bulkData = results.map(r => ({
-                ...r.shift,
-                segments: r.segments || [],
-                flags: JSON.parse(r.shift.status_json || '{}'),
-                updated_at: new Date(r.shift.updated_at).getTime(),
-                server_id: r.shift.id,
-                dirty: 0,
-                deleted: 0
-            }));
+            const bulkData = results.map(r => {
+                // Helper: Safe Parse JSON
+                const safeParseList = (val) => {
+                    try {
+                        return typeof val === 'string' ? JSON.parse(val) : (val || []);
+                    } catch { return []; }
+                };
+
+                // Normalize Segments
+                const normalizedSegments = (r.segments || []).map(seg => ({
+                    ...seg,
+                    from_code: seg.from_station || seg.from_code,
+                    to_code: seg.to_station || seg.to_code,
+                    tfz: seg.loco_nr || seg.tfz
+                }));
+
+                return {
+                    ...r.shift,
+                    segments: normalizedSegments,
+                    guest_rides: safeParseList(r.shift.guest_rides),
+                    waiting_times: safeParseList(r.shift.waiting_times),
+                    flags: JSON.parse(r.shift.status_json || '{}'),
+                    updated_at: new Date(r.shift.updated_at).getTime(),
+                    server_id: r.shift.id,
+                    dirty: 0,
+                    deleted: 0
+                };
+            });
 
             if (bulkData.length > 0) {
                  await db.shifts.bulkPut(bulkData);
@@ -423,7 +460,8 @@ const LokLogEditor = () => {
             </div>
 
             {/* Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* FORCE REMOUNT ON DATE CHANGE */}
+            <div key={date} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
                 {/* LEFT: Shift Inputs */}
                 <div className="lg:col-span-4 space-y-6">
