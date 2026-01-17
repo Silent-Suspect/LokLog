@@ -20,5 +20,5 @@ db.version(1).stores({
   // Given the complexity of Sync ("Last Write Wins" on the whole day is easier if it's one record),
   // I will check the user's preference or stick to the plan.
   // The plan explicitly defined a `segments` table. I will stick to that to be robust.
-  segments: '++id, shift_id, from_code, to_code'
+  // segments: '++id, shift_id, from_code, to_code'
 });
