@@ -32,7 +32,7 @@ export async function onRequestGet(context) {
                 results = rows;
             }
         } else if (searchTerm && searchTerm.length > 1) {
-            const term = `%${searchTerm}%`;
+            const term = `${searchTerm}%`;
             const query = `
         SELECT * FROM stations 
         WHERE code LIKE ? OR name LIKE ? OR short_name LIKE ? 
