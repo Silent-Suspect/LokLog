@@ -2,6 +2,8 @@
 import { generateShiftExcel } from './exportService';
 import { saveAs } from 'file-saver';
 
+const stationCache = new Map();
+
 /**
  * Handles the full export process: fetching templates, stations, generating Excel, and saving.
  * @param {Object} data - { shift, segments, guestRides, waitingTimes, duration, date }
@@ -21,20 +23,38 @@ export const handleExportLogic = async (data, user, settings, uploadFile, showTo
 
         // 2. Load Stations (Optimize: only unique codes)
         const uniqueCodes = [...new Set(data.segments.flatMap(s => [s.from_code, s.to_code].filter(Boolean)))];
-        const stationMap = new Map();
 
-        if (uniqueCodes.length > 0) {
+        // Safety: Clear cache if it grows too large before processing
+        if (stationCache.size > 500) {
+            stationCache.clear();
+        }
+
+        // Identify missing codes not in cache
+        const missingCodes = uniqueCodes.filter(code => !stationCache.has(code.toUpperCase()));
+
+        if (missingCodes.length > 0) {
             try {
-                const q = new URLSearchParams({ codes: uniqueCodes.join(',') });
+                const q = new URLSearchParams({ codes: missingCodes.join(',') });
                 const stRes = await fetch(`/api/stations?${q}`);
                 if (stRes.ok) {
                     const stData = await stRes.json();
-                    (stData.results || []).forEach(st => stationMap.set(st.code.toUpperCase(), st.name));
+                    (stData.results || []).forEach(st => {
+                        stationCache.set(st.code.toUpperCase(), st.name);
+                    });
                 }
             } catch (e) {
                 console.warn("Station lookup failed", e);
             }
         }
+
+        // Build the map for this export from cache
+        const stationMap = new Map();
+        uniqueCodes.forEach(code => {
+            const upperCode = code.toUpperCase();
+            if (stationCache.has(upperCode)) {
+                stationMap.set(upperCode, stationCache.get(upperCode));
+            }
+        });
 
         // 3. Generate Excel
         const blobData = await generateShiftExcel(
